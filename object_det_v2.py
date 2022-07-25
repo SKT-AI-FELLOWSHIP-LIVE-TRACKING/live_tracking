@@ -5,30 +5,41 @@ import timeit
 
 class object_detection():
     def __init__(self, image):
+        """
+        image : Array of uint8
+            Raw image to find predictions
+        interpreter : tensorflow.lite.python.interpreter.Interpreter
+            tflite model interpreter
+        input_details : list
+            input details of interpreter
+        output_details : list
+            output details of interpreter
+        category_index : dict
+            dictionary of labels
+        """
         self.image = image
         self.interpreter = tf.lite.Interpreter(model_path="coco_ssd_mobilenet/detect.tflite")
         self.interpreter.allocate_tensors()
 
-        # Get input and output tensors.
         self.input_details = self.interpreter.get_input_details()
         self.output_details = self.interpreter.get_output_details()
 
-        self.category_index = self.create_category_index()
+        self.category_index = self.create_category_index('coco_ssd_mobilenet/labelmap.txt')
         self.input_shape = self.input_details[0]['shape']
-        self.image_width = 1080
-        self.image_height = 720
+        self.image_width = image.shape[1]
+        self.image_height = image.shape[0]
 
     def create_category_index(self, label_path='coco_ssd_mobilenet/labelmap.txt'):
         """
         To create dictionary of label map
-        Parameters
-        ----------
-        label_path : string, optional
-            Path to labelmap.txt. The default is 'coco_ssd_mobilenet/labelmap.txt'.
-        Returns
         -------
-        category_index : dict
-            nested dictionary of labels.
+        Parameters:
+            label_path : string, optional
+                Path to labelmap.txt. The default is 'coco_ssd_mobilenet/labelmap.txt'.
+        -------
+        Returns:
+            category_index : dict
+                dictionary of labels.
         """
         f = open(label_path)
         category_index = {}
@@ -41,34 +52,29 @@ class object_detection():
         f.close()
         return category_index
 
-    def get_output_dict(self, image, interpreter, output_details, nms=True, iou_thresh=0.5, score_thresh=0.6):
+    def get_output_dict(self, image, nms=True, iou_thresh=0.5, score_thresh=0.6):
         """
         Function to make predictions and generate dictionary of output
-        Parameters
-        ----------
-        image : Array of uint8
-            Preprocessed Image to perform prediction on
-        interpreter : tensorflow.lite.python.interpreter.Interpreter
-            tflite model interpreter
-        input_details : list
-            input details of interpreter
-        output_details : list
-        nms : bool, optional
-            To perform non-maximum suppression or not. The default is True.
-        iou_thresh : int, optional
-            Intersection Over Union Threshold. The default is 0.5.
-        score_thresh : int, optional
-            score above predicted class is accepted. The default is 0.6.
-        Returns
+        --------
+        Parameters:
+            image : Array of uint8
+                Preprocessed Image to perform prediction on
+            nms : bool, optional
+                To perform non-maximum suppression or not. The default is True.
+            iou_thresh : float, optional
+                Intersection Over Union Threshold. The default is 0.5.
+            score_thresh : float, optional
+                score above predicted class is accepted. The default is 0.6.
         -------
-        output_dict : dict
-            Dictionary containing bounding boxes, classes and scores.
+        Returns:
+            output_dict : dict
+                Dictionary containing bounding boxes, classes and scores.
         """
         output_dict = {
-                    'detection_boxes' : interpreter.get_tensor(output_details[0]['index'])[0],
-                    'detection_classes' : interpreter.get_tensor(output_details[1]['index'])[0],
-                    'detection_scores' : interpreter.get_tensor(output_details[2]['index'])[0],
-                    'num_detections' : interpreter.get_tensor(output_details[3]['index'])[0]
+                    'detection_boxes' : self.interpreter.get_tensor(self.output_details[0]['index'])[0],
+                    'detection_classes' : self.interpreter.get_tensor(self.output_details[1]['index'])[0],
+                    'detection_scores' : self.interpreter.get_tensor(self.output_details[2]['index'])[0],
+                    'num_detections' : self.interpreter.get_tensor(self.output_details[3]['index'])[0]
                     }
 
         output_dict['detection_classes'] = output_dict['detection_classes'].astype(np.int64)
@@ -79,26 +85,26 @@ class object_detection():
     def apply_nms(self, output_dict, iou_thresh=0.5, score_thresh=0.6):
         """
         Function to apply non-maximum suppression on different classes
-        Parameters
         ----------
-        output_dict : dictionary
-            dictionary containing:
-                'detection_boxes' : Bounding boxes coordinates. Shape (N, 4)
-                'detection_classes' : Class indices detected. Shape (N)
-                'detection_scores' : Shape (N)
-                'num_detections' : Total number of detections i.e. N. Shape (1)
-        iou_thresh : int, optional
-            Intersection Over Union threshold value. The default is 0.5.
-        score_thresh : int, optional
-            Score threshold value below which to ignore. The default is 0.6.
-        Returns
+        Parameters
+            output_dict : dictionary
+                dictionary containing:
+                    'detection_boxes' : Bounding boxes coordinates. Shape (N, 4)
+                    'detection_classes' : Class indices detected. Shape (N)
+                    'detection_scores' : Shape (N)
+                    'num_detections' : Total number of detections i.e. N. Shape (1)
+            iou_thresh : float, optional
+                Intersection Over Union threshold value. The default is 0.5.
+            score_thresh : float, optional
+                Score threshold value below which to ignore. The default is 0.6.
         -------
-        output_dict : dictionary
-            dictionary containing only scores and IOU greater than threshold.
-                'detection_boxes' : Bounding boxes coordinates. Shape (N2, 4)
-                'detection_classes' : Class indices detected. Shape (N2)
-                'detection_scores' : Shape (N2)
-                where N2 is the number of valid predictions after those conditions.
+        Returns
+            output_dict : dictionary
+                dictionary containing only scores and IOU greater than threshold.
+                    'detection_boxes' : Bounding boxes coordinates. Shape (N2, 4)
+                    'detection_classes' : Class indices detected. Shape (N2)
+                    'detection_scores' : Shape (N2)
+                    N2 is the number of valid predictions after those conditions.
         """
         q = 90 # no of classes
         num = int(output_dict['num_detections'])
@@ -151,32 +157,34 @@ class object_detection():
                     (0, 0, 255),
                     2)
 
+            cv2.imshow('image', img)
 
 
-    def make_and_show_inference(self, nms=True, score_thresh=0.6, iou_thresh=0.5):
+
+    def detect_objects(self, nms=True, score_thresh=0.6, iou_thresh=0.5):
         """
-        Generate and draw inference on image
-        Parameters
-        ----------
-        img : Array of uint8
-            Original Image to find predictions on.
-        interpreter : tensorflow.lite.python.interpreter.Interpreter
-            tflite model interpreter
-        input_details : list
-            input details of interpreter
-        output_details : list
-            output details of interpreter
-        category_index : dict
-            dictionary of labels
-        nms : bool, optional
-            To perform non-maximum suppression or not. The default is True.
-        score_thresh : int, optional
-            score above predicted class is accepted. The default is 0.6.
-        iou_thresh : int, optional
-            Intersection Over Union Threshold. The default is 0.5.
-        Returns
+        Function to detect objects
         -------
-        NONE
+        Parameters:
+            img : Array of uint8
+                Original Image to find predictions on.
+            
+            nms : bool, optional
+                To perform non-maximum suppression or not. The default is True.
+            score_thresh : int, optional
+                score above predicted class is accepted. The default is 0.6.
+            iou_thresh : int, optional
+                Intersection Over Union Threshold. The default is 0.5.
+        -------
+        Returns
+            output_dict : dictionary
+                        'detection_boxes' : Bounding boxes coordinates. Shape (N2, 4)
+                        'detection_classes' : Class indices detected. Shape (N2)
+                        'detection_scores' : Shape (N2)
+                        N2 is the number of valid predictions after those conditions.
+            category_index : dict
+                    dictionary of labels.
+>>>>>>> dd6fb42 (Add files via upload)
         """
         img = self.image
         img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -186,7 +194,7 @@ class object_detection():
         self.interpreter.set_tensor(self.input_details[0]['index'], img_rgb)
         self.interpreter.invoke()
         
-        output_dict = self.get_output_dict(img_rgb, self.interpreter, self.output_details, nms, iou_thresh, score_thresh)
+        output_dict = self.get_output_dict(img_rgb, nms, iou_thresh, score_thresh)
         # Visualization of the results of a detection.
         # self.visualize_image(img, output_dict['detection_boxes'], output_dict['detection_classes'], output_dict['detection_scores'], self.category_index)
 

@@ -19,6 +19,12 @@ class face_detection:
 
     #detect faces
     def detect_faces(self):
+        """
+        Function to detect faces
+        -------
+        Returns:
+            NONE
+        """
         # model_selction = 0 -> 속도 빠른 모델, 1 -> 정확도 높은 속도 느린 모델
         # 모델 불러와서 face detect
         with self.mp_face_detection.FaceDetection(
@@ -38,6 +44,17 @@ class face_detection:
     # localization_to_region
     # dtos.FaceRegions
     def localization_to_region(self):
+        """
+        Function to detect objects
+        -------
+        Returns
+            face_full : list
+                face regions detected 
+            core_landmark : list, optional
+                key landmarks of face (eyes, nose, mouth)
+            all_landmark : list, optional
+                all landmarks of face (including ears)
+        """
         # 얼굴이 없는 경우도 고려해야 함.
         self.face_full = []
         self.core_landmark = []
@@ -83,7 +100,6 @@ class face_detection:
                 all_landmark_region = []
                 
                 for i in range(4):
-                    #region = FaceRegions()
                     keypoint = location.relative_keypoints[i]
                     x = keypoint.x
                     y = keypoint.y
@@ -92,8 +108,6 @@ class face_detection:
                     SignalType = "FACE_LANDMARK"
                     
                     region = FaceRegions(x, y, w, h, SignalType, visual_score)
-                    #region.update_region(x, y, width, height, SignalType, visual_score)
-
                     region = self.extend_salient_region_with_point(keypoint.x, keypoint.y, region)
 
                     core_landmark_region.append(region)
@@ -101,7 +115,6 @@ class face_detection:
 
                 
                 for i in range(4, 6):
-                    #region = FaceRegions()
                     keypoint = location.relative_keypoints[i]
                     x = keypoint.x
                     y = keypoint.y
@@ -110,7 +123,6 @@ class face_detection:
                     SignalType = "FACE_LANDMARK"
                    
                     region = FaceRegions(x, y, w, h, SignalType, visual_score)
-                    #region.update_region(x, y, width, height, SignalType, visual_score)
 
                     region = self.extend_salient_region_with_point(keypoint.x, keypoint.y, region)
 
@@ -124,6 +136,22 @@ class face_detection:
         return self.face_full, self.core_landmark, self.all_landmark
 
     def extend_salient_region_with_point(self, x, y, region):
+        """
+        Function to extend regions in consideration of error
+        -------
+        Parameters
+            x : float
+                x of face keypoint
+            y : float
+                y of face keypoint
+            region : dataclass
+                class containing face regions
+        -------
+        Returns
+            region : dataclass
+                updated regions
+            
+        """
         if(region.w is None):
             region.set_w(self.normalize_x(1))
         elif(x < region.x):
