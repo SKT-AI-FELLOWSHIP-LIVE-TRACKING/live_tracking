@@ -32,21 +32,21 @@ class FaceRegions:
         self.h = h
 
 
+@dataclass
 # object detection
-class DetectionLocaliztion:
-    xmin: float
-    ymin: float
-    xmax: float
-    ymax: float
+class DetectionRegions:
+    x: float
+    y: float
+    w: float
+    h: float
     score: float
     class_id: int
-    format: str
 
-    def update_localization(self, xmin, ymin, xmax, ymax, score, class_id):
-        self.xmin = xmin
-        self.ymin = ymin
-        self.xmax = xmax
-        self.ymax = ymax
+    def update_region(self, x, y, w, h, score, class_id):
+        self.x = x
+        self.y = y
+        self.w = w
+        self.h = h
         self.score = score
         self.class_id = class_id
     

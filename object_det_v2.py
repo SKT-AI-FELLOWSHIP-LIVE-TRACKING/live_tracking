@@ -184,7 +184,6 @@ class object_detection():
                         N2 is the number of valid predictions after those conditions.
             category_index : dict
                     dictionary of labels.
->>>>>>> dd6fb42 (Add files via upload)
         """
         img = self.image
         img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)

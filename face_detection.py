@@ -87,7 +87,7 @@ class face_detection:
                 width = min(box.width - abs(x - box.xmin), 1 - x)
                 height = min(box.height - abs(y - box.ymin), 1 - y)
                 SignalType = "FACE_FULL"
-                visual_score = detection.score
+                visual_score = detection.score[0]
 
                 region = FaceRegions(x, y, width, height, SignalType, visual_score)
                 # region.update_region(x, y, width, height, SignalType, visual_score)
