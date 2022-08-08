@@ -162,7 +162,7 @@ def main():
       ### 예비 구현
 
       original_ratio = get_ratio(image_width, image_height)
-      requested_ratio = 9 / 16
+      requested_ratio = 5 / 4
       if (original_ratio > requested_ratio):
         target_height = round_to_even(image_height)
         target_width = round_to_even(image_height * requested_ratio)
@@ -201,13 +201,17 @@ def main():
       optimal_x_center = int(optimal_x_center * image_width)
 
       # 실시간으로 프레임 보간할 방법을 생각해야 함.... 이게 최고 난이도일듯? 지금 코드는 임시라고 보면 될듯
-      if (abs(pre_x_center - optimal_x_center) > 25): # 가로 기준(세로 고정) -> 세로 기준 추가해야 함
+      if (abs(pre_x_center - optimal_x_center) > 50): # 가로 기준(세로 고정) -> 세로 기준 추가해야 함
           left = int(optimal_x_center - target_width / 2)
           pre_x_center = optimal_x_center
       else:
         left = int(pre_x_center - target_width / 2)
       # print(left)
-      if(len(all_regions) == 0 or left < 0):
+      if(left < 0):
+        left = 0
+      elif (left > image_width - target_width):
+        left = image_width - target_width
+      if(len(all_regions) == 0):
         left = int((image_width - target_width) / 2)
       
       img = image[:, left:left+target_width]

@@ -1,33 +1,45 @@
 from dtos import DetectionRegions
 
 class detection_processing():
-    def __init__(self, boxes, classes, scores, faceregions):
+    def __init__(self, boxes, classes, scores, face_regions):
         self.boxes = boxes
         self.classes = classes
         self.scores = scores
-        self.faceregions = faceregions
+        self.face_regions = face_regions
         self.regions = []
-        self.sorted_regions = []
+        # self.regions_to_sort
+        # self.sorted_regions
 
     def tensors_to_regions(self):
-        # 얼굴 수와 사람의 디텍션 수가 같을 때는 프레임 처리를 위해 사람의 디텍션 정보 추가 ㅌ
-        ignore_person = 0
-        person_cnt = len([x for x in self.classes if x == 0])
-        if (len(self.faceregions) == person_cnt):
-            ignore_person = 1
         for i, box in enumerate(self.boxes):
-            if (ignore_person == 1 and self.classes[i] == 0):
-                continue
             x = box[1]
             y = box[0]
             w = box[3] - box[1]
             h = box[2] - box[0]
             detection = DetectionRegions(x, y, w, h, self.scores[i], self.classes[i])
             self.regions.append(detection)
+        self.combine_faces_and_detections(self.regions)
+        
+    def combine_faces_and_detections(self, detectioin_regions):
+        # self.face_regions
+        # detectioin_regions
+        for i, region in enumerate(detectioin_regions):
+            if (region.class_id == 0):
+                for j, face in enumerate(self.face_regions):
+                    if ((face.x > region.x) and (face.x + face.w < region.x + region.w)):
+                        if(region.score > face.score):
+                            self.face_regions.pop(j)
+                        else:
+                            detectioin_regions.pop(i)
+                            break
+        regions_to_sort = self.face_regions + detectioin_regions
+        print(regions_to_sort)
+        self.regions_to_sort = regions_to_sort
+
     
     def sort_detection(self):
-        regions_to_sort = self.faceregions + self.regions
-        self.sorted_regions = self.insert_sort(regions_to_sort)
+        # regions_to_sort = self.faceregions + self.regions
+        self.sorted_regions = self.insert_sort(self.regions_to_sort)
 
         return self.sorted_regions
         
