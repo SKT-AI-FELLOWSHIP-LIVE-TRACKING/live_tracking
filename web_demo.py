@@ -119,6 +119,8 @@ def main():
   # For webcam input:
   cap = cv2.VideoCapture(0)
   pre_x_center = -10000
+  last_detection = 0
+
   while cap.isOpened():
       success, image = cap.read()
       if not success:
@@ -157,6 +159,7 @@ def main():
       dp = detection_processing(boxes, classes, scores, regions[0])
       dp.tensors_to_regions()
       all_regions = dp.sort_detection()
+      print(all_regions)
 
 
       ### 예비 구현
@@ -201,8 +204,39 @@ def main():
       optimal_x_center = int(optimal_x_center * image_width)
 
       # 실시간으로 프레임 보간할 방법을 생각해야 함.... 이게 최고 난이도일듯? 지금 코드는 임시라고 보면 될듯
-      if (abs(pre_x_center - optimal_x_center) > 50): # 가로 기준(세로 고정) -> 세로 기준 추가해야 함
+      if (len(all_regions) == 0): # 디텍션 없을 때
+        left = int((image_width - target_width) / 2)
+        pre_x_center = image_width / 2
+      elif (last_detection != len(all_regions)):
+        left = int(optimal_x_center - target_width / 2)
+        # use sweeping mode
+        if (pre_x_center > optimal_x_center):
+          idx = -1
+        else:
+          idx = 1
+        sweep = left + pre_x_center - optimal_x_center
+        while (sweep != left):
+          sweep += idx
+          if (sweep < 0 or sweep > image_width - target_width):
+            break
+          img = image[:, sweep:sweep+target_width]
+          cv2.imshow('cropped', img)
+        # use stationary mode
+        last_detection = len(all_regions)
+      elif (abs(pre_x_center - optimal_x_center) > 50): # 가로 기준(세로 고정) -> 세로 기준 추가해야 함
           left = int(optimal_x_center - target_width / 2)
+          # use sweeping mode
+          if (pre_x_center > optimal_x_center):
+            idx = -1
+          else:
+            idx = 1
+          sweep = left + pre_x_center - optimal_x_center
+          while (sweep != left):
+            sweep += idx
+            if (sweep < 0 or sweep > image_width - target_width):
+              break
+            img = image[:, sweep:sweep+target_width]
+            cv2.imshow('cropped', img)
           pre_x_center = optimal_x_center
       else:
         left = int(pre_x_center - target_width / 2)
@@ -211,53 +245,14 @@ def main():
         left = 0
       elif (left > image_width - target_width):
         left = image_width - target_width
-      if(len(all_regions) == 0):
-        left = int((image_width - target_width) / 2)
+      
       
       img = image[:, left:left+target_width]
       cv2.imshow('cropped', img)
 
 
-        
 
 
-
-
-
-
-      # if regions[0] != []:
-      #   for i in range(len(regions[0])):
-      #     face_full_region = [regions[0][i].x, regions[0][i].y, regions[0][i].w, regions[0][i].h]
-
-      #     x_px = min(math.floor(face_full_region[0] * image_width), image_width - 1)
-      #     y_px = min(math.floor(face_full_region[1] * image_height), image_height - 1)
-      #     w_px = min(math.floor(face_full_region[2] * image_width), image_width - 1)
-      #     h_px = min(math.floor(face_full_region[3] * image_height), image_height - 1)
-          
-      #     face_x.append(x_px)
-
-      #   # 제일 큰거 기준으로 넣을 수 있을 만큼 넣기
-      #   if (target_width > max(face_x) - min(face_x)):
-      #     x_center = int(x_px + w_px / 2)
-      #     y_center = int(y_px + h_px / 2)
-      #   # else:
-            
-          
-
-      #   # test -> 카메라 고정 흔들리는 거 잡기
-
-      #   print(x_center, y_center)
-      #   if (abs(pre_x_center - x_center) > 5):
-      #     left = int(x_center - target_width / 2)
-      #     pre_x_center = x_center
-      #   else:
-      #     left = int(pre_x_center - target_width / 2)
-      #   # print(left)
-      #   img = image[:, left:left+target_width]
-        
-      #   cv2.imshow('cropped', img)
-
-      
 
       # fps 계산
       terminate_t = timeit.default_timer()

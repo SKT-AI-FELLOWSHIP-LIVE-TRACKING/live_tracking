@@ -33,7 +33,7 @@ class detection_processing():
                             detectioin_regions.pop(i)
                             break
         regions_to_sort = self.face_regions + detectioin_regions
-        print(regions_to_sort)
+        # print(regions_to_sort)
         self.regions_to_sort = regions_to_sort
 
     
@@ -45,7 +45,7 @@ class detection_processing():
         
 
     def insert_sort(self, array):
-        print(array)
+        # print(array)
         for i in range(1, len(array)):
             for j in range(i, 0, -1):
                 if array[j].score > array[j - 1].score: 
