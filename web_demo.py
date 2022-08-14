@@ -48,7 +48,7 @@ def visualize_faces(image, regions, image_width, image_height):
         h_px = min(math.floor(face_full_region[3] * image_height), image_height - 1)
         cv2.rectangle(image, (x_px, y_px), (x_px+w_px, y_px+h_px), (0,0,255), 3)
 
-        score = regions[0][i].score[0]
+        score = regions[0][i].score
         score = round(score, 5)
         cv2.putText(image,
             "FACE: " + str(score),
@@ -115,6 +115,23 @@ def visualize_objects(image, boxes, classes, scores, category_index, image_width
             (0, 0, 255),
             2)
 
+def decide_target_size(original_ratio, requested_ratio, image_width, image_height):
+  if (original_ratio > requested_ratio):
+    target_height = round_to_even(image_height)
+    target_width = round_to_even(image_height * requested_ratio)
+    scaled_target_width = target_width / image_width
+
+    return target_width, target_height, scaled_target_width
+  
+  else:
+    target_width = round_to_even(image_width)
+    target_height = round_to_even(image_width / requested_ratio)
+    scaled_target_height = target_height / image_height
+
+    return target_width, target_height, scaled_target_height
+
+
+
 async def camera_sweeping(left, pre_x_center, optimal_x_center, image_width, target_width, image):
   if (pre_x_center > optimal_x_center):
     idx = -1
@@ -130,7 +147,9 @@ async def camera_sweeping(left, pre_x_center, optimal_x_center, image_width, tar
     img = image[:, sweep:sweep+target_width]
     cv2.imshow('cropped', img)
     
-  
+# async def show_cropped_frame()
+
+# async def show_raw_frame()
 
 async def main():
   # For webcam input:
@@ -161,7 +180,7 @@ async def main():
       fd = face_detection(image)
       fd.detect_faces()
       regions = fd.localization_to_region()
-      # visualize_faces(image, regions, image_width, image_height)
+      visualize_faces(image, regions, image_width, image_height)
 
       # object detection
       od = object_detection(image)
@@ -169,8 +188,7 @@ async def main():
       boxes = output_dict['detection_boxes']
       classes = output_dict['detection_classes']
       scores = output_dict['detection_scores']
-      
-      # visualize_objects(image, boxes, classes, scores, category_index, image_width, image_height)     
+      visualize_objects(image, boxes, classes, scores, category_index, image_width, image_height)     
       
       # detection processing
       dp = detection_processing(boxes, classes, scores, regions[0])
@@ -182,15 +200,9 @@ async def main():
       ### 예비 구현
 
       original_ratio = get_ratio(image_width, image_height)
-      requested_ratio = 5 / 4
-      if (original_ratio > requested_ratio):
-        target_height = round_to_even(image_height)
-        target_width = round_to_even(image_height * requested_ratio)
-        scaled_target_width = target_width / image_width
-      else:
-        target_width = round_to_even(image_width)
-        target_height = round_to_even(image_width / requested_ratio)
-        scaled_target_height = target_height / image_height
+      requested_ratio = 9 / 16
+      target_width, target_height, scaled_target = decide_target_size(original_ratio, requested_ratio, image_width, image_height)
+
 
       # detection 없을 때 고려해야 함
       # detection 여러 개일 때 프레임 흔들림 (두 개 model -> 잡을 때와 안 잡힐 때)
@@ -208,12 +220,12 @@ async def main():
         if (i == 0): # 가로 기준(세로 고정) 나중에 수정해야 함 + 기준은 float로
           x_center_list.append(x_center)
           score_list.append(x_center)
-        elif (scaled_target_width <= 0):
+        elif (scaled_target <= 0):
           break
-        elif (x_center_list[0] - x_center < scaled_target_width): # 바운더리 수정
+        elif (x_center_list[0] - x_center < scaled_target): # 바운더리 수정
           x_center_list.append(x_center)
           score_list.append(x_center)
-          scaled_target_width -= x_center_list[0] - x_center
+          scaled_target -= x_center_list[0] - x_center
       
       if (len(x_center_list)):
         optimal_x_center = np.average(x_center_list)
@@ -227,14 +239,15 @@ async def main():
       elif (last_detection != len(all_regions)):
         left = int(optimal_x_center - target_width / 2)
         # use sweeping mode
-        await camera_sweeping(left, pre_x_center, optimal_x_center, image_width, target_width, image)
+        # 이걸 빼는게 더 자연스러움.... 당황스럽
+        # await camera_sweeping(left, pre_x_center, optimal_x_center, image_width, target_width, image)
         pre_x_center = optimal_x_center
         last_detection = len(all_regions)
         # use stationary mode
-      elif (abs(pre_x_center - optimal_x_center) > 50): # 가로 기준(세로 고정) -> 세로 기준 추가해야 함
+      elif (abs(pre_x_center - optimal_x_center) > 30): # 가로 기준(세로 고정) -> 세로 기준 추가해야 함
           left = int(optimal_x_center - target_width / 2)
           # use sweeping mode
-          await camera_sweeping(left, pre_x_center, optimal_x_center, image_width, target_width, image)
+          # await camera_sweeping(left, pre_x_center, optimal_x_center, image_width, target_width, image)
           pre_x_center = optimal_x_center
       else:
         left = int(pre_x_center - target_width / 2)
@@ -243,25 +256,22 @@ async def main():
         left = 0
       elif (left > image_width - target_width):
         left = image_width - target_width
-      
-      
+
+
       img = image[:, left:left+target_width]
-      cv2.imshow('cropped', img)
-
-
-
-
 
       # fps 계산
       terminate_t = timeit.default_timer()
       fps = int(1.0 / (terminate_t - start_t))
-      cv2.putText(image,
+      cv2.putText(img,
                   "FPS:" + str(fps),
                   (20, 60),
                   cv2.FONT_HERSHEY_SIMPLEX,
                   2,
                   (0, 0, 255),
                   2)
+
+      cv2.imshow('cropped', img)
 
       # cv2.imshow('image', image)
 
