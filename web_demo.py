@@ -3,6 +3,7 @@ import cv2
 import math
 # import argparse
 import timeit
+import asyncio
 import numpy as np
 import mediapipe as mp
 from face_detection import face_detection
@@ -114,8 +115,24 @@ def visualize_objects(image, boxes, classes, scores, category_index, image_width
             (0, 0, 255),
             2)
 
+async def camera_sweeping(left, pre_x_center, optimal_x_center, image_width, target_width, image):
+  if (pre_x_center > optimal_x_center):
+    idx = -1
+  else:
+    idx = 1
+  sweep = left + pre_x_center - optimal_x_center
+  print("SWEEP", sweep, left, pre_x_center, optimal_x_center)
+  while (sweep != left):
+    sweep += idx
+    print("SWEPPING", sweep, pre_x_center, optimal_x_center)
+    if (sweep < 0 or sweep > image_width - target_width):
+      break
+    img = image[:, sweep:sweep+target_width]
+    cv2.imshow('cropped', img)
+    
+  
 
-def main():
+async def main():
   # For webcam input:
   cap = cv2.VideoCapture(0)
   pre_x_center = -10000
@@ -193,7 +210,7 @@ def main():
           score_list.append(x_center)
         elif (scaled_target_width <= 0):
           break
-        elif (x_center_list[0] - x_center < scaled_target_width):
+        elif (x_center_list[0] - x_center < scaled_target_width): # 바운더리 수정
           x_center_list.append(x_center)
           score_list.append(x_center)
           scaled_target_width -= x_center_list[0] - x_center
@@ -206,37 +223,18 @@ def main():
       # 실시간으로 프레임 보간할 방법을 생각해야 함.... 이게 최고 난이도일듯? 지금 코드는 임시라고 보면 될듯
       if (len(all_regions) == 0): # 디텍션 없을 때
         left = int((image_width - target_width) / 2)
-        pre_x_center = image_width / 2
+        pre_x_center = int(image_width / 2)
       elif (last_detection != len(all_regions)):
         left = int(optimal_x_center - target_width / 2)
         # use sweeping mode
-        if (pre_x_center > optimal_x_center):
-          idx = -1
-        else:
-          idx = 1
-        sweep = left + pre_x_center - optimal_x_center
-        while (sweep != left):
-          sweep += idx
-          if (sweep < 0 or sweep > image_width - target_width):
-            break
-          img = image[:, sweep:sweep+target_width]
-          cv2.imshow('cropped', img)
-        # use stationary mode
+        await camera_sweeping(left, pre_x_center, optimal_x_center, image_width, target_width, image)
+        pre_x_center = optimal_x_center
         last_detection = len(all_regions)
+        # use stationary mode
       elif (abs(pre_x_center - optimal_x_center) > 50): # 가로 기준(세로 고정) -> 세로 기준 추가해야 함
           left = int(optimal_x_center - target_width / 2)
           # use sweeping mode
-          if (pre_x_center > optimal_x_center):
-            idx = -1
-          else:
-            idx = 1
-          sweep = left + pre_x_center - optimal_x_center
-          while (sweep != left):
-            sweep += idx
-            if (sweep < 0 or sweep > image_width - target_width):
-              break
-            img = image[:, sweep:sweep+target_width]
-            cv2.imshow('cropped', img)
+          await camera_sweeping(left, pre_x_center, optimal_x_center, image_width, target_width, image)
           pre_x_center = optimal_x_center
       else:
         left = int(pre_x_center - target_width / 2)
@@ -274,4 +272,4 @@ def main():
   
 
 if __name__ == "__main__":
-  main()
+  asyncio.run(main())
