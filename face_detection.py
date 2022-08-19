@@ -28,7 +28,7 @@ class face_detection:
         # model_selction = 0 -> 속도 빠른 모델, 1 -> 정확도 높은 속도 느린 모델
         # 모델 불러와서 face detect
         with self.mp_face_detection.FaceDetection(
-            model_selection=0, min_detection_confidence=0.5) as face_detection:
+            model_selection=0, min_detection_confidence=0.6) as face_detection:
             # To improve performance, optionally mark the image as not writeable to
             # pass by reference.
             self.image.flags.writeable = False
