@@ -119,7 +119,7 @@ def decide_target_size(original_ratio, requested_ratio, image_width, image_heigh
   if (original_ratio > requested_ratio):
     target_height = round_to_even(image_height)
     target_width = round_to_even(image_height * requested_ratio)
-    scaled_target_width = target_width / image_width
+    scaled_target_width = target_width / image_width / 2
 
     return target_width, target_height, scaled_target_width
   
@@ -128,7 +128,62 @@ def decide_target_size(original_ratio, requested_ratio, image_width, image_heigh
     target_height = round_to_even(image_width / requested_ratio)
     scaled_target_height = target_height / image_height
 
-    return target_width, target_height, scaled_target_height
+    return target_width, target_height, scaled_target_height / 2
+
+class piecewise_func():
+  def __init__(self, start, end):
+    self.start_x = 0
+    self.start_y = start
+    self.end_x = 30
+    self.end_y = end
+    self.time_ = 30 # fps 30 -> 1 sec
+  
+  def evaluate(self, input):
+    return self.end_x - (self.end_x - input) / (self.end_x - self.start_x) * (self.end_y - self.start_y)
+
+def show_fps(img, start_t):
+  terminate_t = timeit.default_timer()
+  fps = int(1.0 / (terminate_t - start_t))
+  cv2.putText(img,
+              "FPS:" + str(fps),
+              (20, 60),
+              cv2.FONT_HERSHEY_SIMPLEX,
+              2,
+              (0, 0, 255),
+              2)
+  return img
+
+def float_frame_imshow(interpolated, image_width, target_width, image, start_t):
+  # x_center = min(math.floor(interpolated * image_width), image_width - 1)
+  x_center = int(interpolated * image_width)
+  left = int(x_center - target_width / 2)
+  if (left < 0):
+    left = 0
+  elif (left > image_width - target_width):
+    left = image_width - target_width
+  img = image[:, left:left + target_width]
+  # img = show_fps(img, start_t)
+  cv2.imshow('cropped', img)
+
+
+# test
+# 카메라 기준 1초
+async def real_time_interpolate(pre_x_center, optimal_x_center, image_width, target_width, image, start_t):
+  time_ = 30 # fps 30
+  start = pre_x_center
+  end = optimal_x_center
+  func = piecewise_func(start, end)
+  for i in range(1, time_):
+    interpolated = func.evaluate(i)
+    if (int(interpolated * image_width) == optimal_x_center):
+      break
+    float_frame_imshow(interpolated, image_width, target_width, image, start_t)
+    # print("INTERPOLATING")
+    
+
+
+
+
 
 
 
@@ -154,7 +209,7 @@ async def camera_sweeping(left, pre_x_center, optimal_x_center, image_width, tar
 async def main():
   # For webcam input:
   cap = cv2.VideoCapture(0)
-  pre_x_center = -10000
+  pre_x_center = 0.5
   last_detection = 0
 
   while cap.isOpened():
@@ -188,7 +243,7 @@ async def main():
       boxes = output_dict['detection_boxes']
       classes = output_dict['detection_classes']
       scores = output_dict['detection_scores']
-      visualize_objects(image, boxes, classes, scores, category_index, image_width, image_height)     
+      # visualize_objects(image, boxes, classes, scores, category_index, image_width, image_height)     
       
       # detection processing
       dp = detection_processing(boxes, classes, scores, regions[0])
@@ -200,7 +255,7 @@ async def main():
       ### 예비 구현
 
       original_ratio = get_ratio(image_width, image_height)
-      requested_ratio = 9 / 16
+      requested_ratio = 5 / 4
       target_width, target_height, scaled_target = decide_target_size(original_ratio, requested_ratio, image_width, image_height)
 
 
@@ -220,48 +275,44 @@ async def main():
         if (i == 0): # 가로 기준(세로 고정) 나중에 수정해야 함 + 기준은 float로
           x_center_list.append(x_center)
           score_list.append(x_center)
+          min_ = max_ = x_center_list[0]
         elif (scaled_target <= 0):
           break
-        elif (x_center_list[0] - x_center < scaled_target): # 바운더리 수정
-          x_center_list.append(x_center)
-          score_list.append(x_center)
-          scaled_target -= x_center_list[0] - x_center
+        elif ((min_ - x_center > 0) and (min_ - x_center < scaled_target)):
+          scaled_target -= min_ - x_center
+          min_ = x_center
+        elif ((x_center - max_ < scaled_target) and (x_center - max_ > 0)):
+          scaled_target -= x_center - max_
+          max_ = x_center
+
+        # elif (x_center_list[0] - x_center < scaled_target): # 바운더리 수정
+        #   x_center_list.append(x_center)
+        #   score_list.append(x_center)
+        #   scaled_target -= x_center_list[0] - x_center
       
       if (len(x_center_list)):
         optimal_x_center = np.average(x_center_list)
-
-      optimal_x_center = int(optimal_x_center * image_width)
-
-      # 실시간으로 프레임 보간할 방법을 생각해야 함.... 이게 최고 난이도일듯? 지금 코드는 임시라고 보면 될듯
-      if (len(all_regions) == 0): # 디텍션 없을 때
-        left = int((image_width - target_width) / 2)
-        pre_x_center = int(image_width / 2)
-      elif (last_detection != len(all_regions)):
-        left = int(optimal_x_center - target_width / 2)
-        # use sweeping mode
-        # 이걸 빼는게 더 자연스러움.... 당황스럽
-        # await camera_sweeping(left, pre_x_center, optimal_x_center, image_width, target_width, image)
-        pre_x_center = optimal_x_center
-        last_detection = len(all_regions)
-        # use stationary mode
-      elif (abs(pre_x_center - optimal_x_center) > 30): # 가로 기준(세로 고정) -> 세로 기준 추가해야 함
-          left = int(optimal_x_center - target_width / 2)
-          # use sweeping mode
-          # await camera_sweeping(left, pre_x_center, optimal_x_center, image_width, target_width, image)
-          pre_x_center = optimal_x_center
       else:
-        left = int(pre_x_center - target_width / 2)
-      # print(left)
-      if(left < 0):
+        optimal_x_center = 0.5
+
+      terminate_t = timeit.default_timer()
+      await real_time_interpolate(pre_x_center, optimal_x_center, image_width, target_width, image, start_t)
+      # terminate_t = timeit.default_timer()
+
+      if (abs(pre_x_center - optimal_x_center) * image_width < 30): # 가로 기준(세로 고정) -> 세로 기준 추가해야 함
+        optimal_x_center = pre_x_center
+      
+      left = int(optimal_x_center * image_width - target_width / 2)
+      if (left < 0):
         left = 0
       elif (left > image_width - target_width):
         left = image_width - target_width
 
-
+      pre_x_center = optimal_x_center
       img = image[:, left:left+target_width]
 
       # fps 계산
-      terminate_t = timeit.default_timer()
+      # terminate_t = timeit.default_timer()
       fps = int(1.0 / (terminate_t - start_t))
       cv2.putText(img,
                   "FPS:" + str(fps),
