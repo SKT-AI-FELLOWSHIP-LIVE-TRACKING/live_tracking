@@ -8,9 +8,8 @@ class detection_processing():
         self.scores = scores
         self.face_regions = face_regions
         self.categories = [0, # person
-                           1,2,3,4,5,6,7,8, # 교통 수단
                            15,16,17,18,19,20,21,22,23,24, # 동물
-                           33,34,35,36,37,38,39,40,41,42] # 운동 관련
+                           36] # sports ball
         self.regions = []
         # self.regions_to_sort
         # self.sorted_regions
