@@ -90,7 +90,13 @@ def visualize_objects(image, boxes, classes, scores, category_index, image_width
   Returns
     NONE
   """
+  required_categories = [0, # person
+                         15,16,17,18,19,20,21,22,23,24, # 동물
+                         36] # sports ball
+  
   for i in range(len(classes)):
+    if (binary_search(required_categories, classes[i]) == False):
+      continue
     ymin, xmin, ymax, xmax = boxes[i]
     (left, right, top, bottom) = (xmin * image_width, xmax * image_width, ymin * image_height, ymax * image_height)
     left = int(left)
@@ -114,6 +120,23 @@ def visualize_objects(image, boxes, classes, scores, category_index, image_width
             3,
             (0, 0, 255),
             2)
+
+def binary_search(array, search):
+  if (len(array) == 1):
+    if (array[0] == search):
+        return True
+    else:
+        return False
+  if (len(array) == 0):
+      return False
+  
+  median = len(array) // 2
+  if (search == array[median]):
+    return True
+  if (search > array[median]):
+    return binary_search(array[median:], search)
+  else:
+    return binary_search(array[:median], search)
 
 def decide_target_size(original_ratio, requested_ratio, image_width, image_height):
   if (original_ratio > requested_ratio):
@@ -243,7 +266,7 @@ async def main():
       boxes = output_dict['detection_boxes']
       classes = output_dict['detection_classes']
       scores = output_dict['detection_scores']
-      # visualize_objects(image, boxes, classes, scores, category_index, image_width, image_height)     
+      visualize_objects(image, boxes, classes, scores, category_index, image_width, image_height)     
       
       # detection processing
       dp = detection_processing(boxes, classes, scores, regions[0])
