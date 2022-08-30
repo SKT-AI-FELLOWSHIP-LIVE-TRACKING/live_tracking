@@ -6,6 +6,9 @@ import timeit
 import asyncio
 import numpy as np
 import mediapipe as mp
+from sort_tracker import *
+from dtos import TrackingRegions
+from einops import rearrange
 from face_detection import face_detection
 from object_det_v2 import object_detection
 from detection_processing import detection_processing
@@ -20,6 +23,10 @@ def round_to_even(value):
     rounded_value = max(2, rounded_value - 1)
   
   return rounded_value
+
+# cosine similarity 
+def cos_sim(A, B):
+  return np.dot(A, B)/(np.linalg.norm(A)*np.linalg.norm(B))
 
 
 def visualize_faces(image, regions, image_width, image_height):
@@ -149,20 +156,10 @@ def decide_target_size(original_ratio, requested_ratio, image_width, image_heigh
   else:
     target_width = round_to_even(image_width)
     target_height = round_to_even(image_width / requested_ratio)
-    scaled_target_height = target_height / image_height
+    scaled_target_height = target_height / image_height / 2
 
-    return target_width, target_height, scaled_target_height / 2
+    return target_width, target_height, scaled_target_height
 
-class piecewise_func():
-  def __init__(self, start, end):
-    self.start_x = 0
-    self.start_y = start
-    self.end_x = 30
-    self.end_y = end
-    self.time_ = 30 # fps 30 -> 1 sec
-  
-  def evaluate(self, input):
-    return self.end_x - (self.end_x - input) / (self.end_x - self.start_x) * (self.end_y - self.start_y)
 
 def show_fps(img, start_t):
   terminate_t = timeit.default_timer()
@@ -188,6 +185,16 @@ def float_frame_imshow(interpolated, image_width, target_width, image, start_t):
   # img = show_fps(img, start_t)
   cv2.imshow('cropped', img)
 
+class piecewise_func():
+  def __init__(self, start, end, time):
+    self.start_x = 0
+    self.start_y = start
+    self.end_x = time
+    self.end_y = end
+    # self.time_ = 30 # fps 30 -> 1 sec
+  
+  def evaluate(self, input):
+    return self.end_x - (self.end_x - input) / (self.end_x - self.start_x) * (self.end_y - self.start_y)
 
 # test
 # 카메라 기준 1초
@@ -195,7 +202,7 @@ async def real_time_interpolate(pre_x_center, optimal_x_center, image_width, tar
   time_ = 30 # fps 30
   start = pre_x_center
   end = optimal_x_center
-  func = piecewise_func(start, end)
+  func = piecewise_func(start, end, time_)
   for i in range(1, time_):
     interpolated = func.evaluate(i)
     if (int(interpolated * image_width) == optimal_x_center):
@@ -205,35 +212,20 @@ async def real_time_interpolate(pre_x_center, optimal_x_center, image_width, tar
     
 
 
-
-
-
-
-
-async def camera_sweeping(left, pre_x_center, optimal_x_center, image_width, target_width, image):
-  if (pre_x_center > optimal_x_center):
-    idx = -1
-  else:
-    idx = 1
-  sweep = left + pre_x_center - optimal_x_center
-  print("SWEEP", sweep, left, pre_x_center, optimal_x_center)
-  while (sweep != left):
-    sweep += idx
-    print("SWEPPING", sweep, pre_x_center, optimal_x_center)
-    if (sweep < 0 or sweep > image_width - target_width):
-      break
-    img = image[:, sweep:sweep+target_width]
-    cv2.imshow('cropped', img)
-    
-# async def show_cropped_frame()
-
-# async def show_raw_frame()
-
 async def main():
   # For webcam input:
   cap = cv2.VideoCapture(0)
   pre_x_center = 0.5
   last_detection = 0
+  mot_tracker = Sort(max_age=2, min_hits=0)
+  frame_id = 1
+  regions_list = []
+
+  # 비율 관련
+  # original_ratio = get_ratio(image_width, image_height)
+  # requested_ratio = 5 / 4
+  # target_width, target_height, scaled_target = decide_target_size(original_ratio, requested_ratio, image_width, image_height)
+
 
   while cap.isOpened():
       success, image = cap.read()
@@ -254,31 +246,88 @@ async def main():
 
       image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
 
-      # face detection
-      fd = face_detection(image)
-      fd.detect_faces()
-      regions = fd.localization_to_region()
-      visualize_faces(image, regions, image_width, image_height)
+      if (frame_id % 4 == 1): # detection per 5 frames # % 5 == 1
+        # face detection
+        fd = face_detection(image)
+        fd.detect_faces()
+        regions = fd.localization_to_region()
+        #visualize_faces(image, regions, image_width, image_height)
 
-      # object detection
-      od = object_detection(image)
-      output_dict, category_index = od.detect_objects()
-      boxes = output_dict['detection_boxes']
-      classes = output_dict['detection_classes']
-      scores = output_dict['detection_scores']
-      visualize_objects(image, boxes, classes, scores, category_index, image_width, image_height)     
+        # object detection
+        od = object_detection(image)
+        output_dict, category_index = od.detect_objects()
+        boxes = output_dict['detection_boxes']
+        classes = output_dict['detection_classes']
+        scores = output_dict['detection_scores']
+        #visualize_objects(image, boxes, classes, scores, category_index, image_width, image_height)     
       
-      # detection processing
-      dp = detection_processing(boxes, classes, scores, regions[0])
-      dp.tensors_to_regions()
-      all_regions = dp.sort_detection()
+
+        # detection processing
+        dp = detection_processing(boxes, classes, scores, regions[0])
+        dp.tensors_to_regions()
+        all_regions = dp.sort_detection()
+        # regions_list.append(all_regions)
+        # print(all_regions)
+
+        frame_id += 1
+
+      else: # no detection -> tracking
+        track_bbs_ids = []
+        processed_boxes = []
+        len_ = len(all_regions)
+        if (len_):
+          for i in range(len_):
+            xmin = int(all_regions[i].x * image_width)
+            ymin = int(all_regions[i].y * image_height)
+            xmax = int((all_regions[i].x + all_regions[i].w) * image_width)
+            ymax = int((all_regions[i].y + all_regions[i].h) * image_height)
+            processed_boxes.append([xmin, ymin, xmax, ymax, all_regions[i].score])
+          processed_boxes = np.asarray(processed_boxes)
+          # print(processed_boxes)
+          track_bbs_ids = mot_tracker.update(processed_boxes)
+          # print(track_bbs_ids)
+
+          # dto = detection class -> 통일성
+          # x, y, w, h, score, tracking_id
+
+          # match tracking with detection - > processed_boxes, track_bbs_ids
+          track_bbs_sorted = []
+          for i, box in enumerate(processed_boxes):
+            len_ = len(track_bbs_ids)
+            if (len_ == 1):
+              track_bbs_sorted.append(track_bbs_ids[0])
+              break
+            elif (len_ < 1):
+              break
+            cos_max = -1
+            cos_max_id = -1
+            for j in range(len_):
+              sim_ = cos_sim(box, track_bbs_ids[j])
+              if (sim_ > cos_max):
+                cos_max = sim_
+                cos_max_id = j
+            track_bbs_sorted.append(track_bbs_ids[j])
+            track_bbs_ids = np.delete(track_bbs_ids, j, 0)
+
+          region_list = []
+
+          for i, det in enumerate(track_bbs_sorted):
+            x = det[0] / image_width
+            y = det[1] / image_height
+            w = (det[2] - det[0]) / image_width
+            h = (det[3] - det[1]) / image_height
+            region_list.append(TrackingRegions(x, y, w, h, all_regions[i].score, det[4]))
+          all_regions = region_list
+          # print(all_regions)
+        frame_id += 1
+      
       print(all_regions)
 
 
       ### 예비 구현
 
       original_ratio = get_ratio(image_width, image_height)
-      requested_ratio = 5 / 4
+      requested_ratio = 4 / 5
       target_width, target_height, scaled_target = decide_target_size(original_ratio, requested_ratio, image_width, image_height)
 
 
@@ -302,19 +351,18 @@ async def main():
         elif (scaled_target <= 0):
           break
         elif ((min_ - x_center > 0) and (min_ - x_center < scaled_target)):
-          scaled_target -= min_ - x_center
+          x_center_list.append(x_center)
+          scaled_target -= (min_ - x_center)
           min_ = x_center
         elif ((x_center - max_ < scaled_target) and (x_center - max_ > 0)):
-          scaled_target -= x_center - max_
+          x_center_list.append(x_center)
+          scaled_target -= (x_center - max_)
           max_ = x_center
 
-        # elif (x_center_list[0] - x_center < scaled_target): # 바운더리 수정
-        #   x_center_list.append(x_center)
-        #   score_list.append(x_center)
-        #   scaled_target -= x_center_list[0] - x_center
       
       if (len(x_center_list)):
         optimal_x_center = np.average(x_center_list)
+        # print(x_center_list)
       else:
         optimal_x_center = 0.5
 
@@ -322,7 +370,7 @@ async def main():
       await real_time_interpolate(pre_x_center, optimal_x_center, image_width, target_width, image, start_t)
       # terminate_t = timeit.default_timer()
 
-      if (abs(pre_x_center - optimal_x_center) * image_width < 30): # 가로 기준(세로 고정) -> 세로 기준 추가해야 함
+      if (abs(pre_x_center - optimal_x_center) * image_width < 15): # 가로 기준(세로 고정) -> 세로 기준 추가해야 함
         optimal_x_center = pre_x_center
       
       left = int(optimal_x_center * image_width - target_width / 2)
@@ -346,7 +394,9 @@ async def main():
                   2)
 
       cv2.imshow('cropped', img)
-
+      # if (frame_id % 5 != 1):
+      #   print(frame_id)
+      #   cv2.imshow('cropped', img)
       # cv2.imshow('image', image)
 
       if cv2.waitKey(10) & 0xFF == 27:
