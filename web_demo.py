@@ -7,11 +7,19 @@ import asyncio
 import numpy as np
 import mediapipe as mp
 from sort_tracker import *
-from dtos import TrackingRegions
-from einops import rearrange
+from deep_sort.deep_sort import nn_matching
+from deep_sort.deep_sort.detection import Detection
+from deep_sort.deep_sort.tracker import Tracker
+from deep_sort.tools import generate_detections
+from reid.torchreid.utils import FeatureExtractor
+from dtos import TrackingRegions 
 from face_detection import face_detection
 from object_det_v2 import object_detection
 from detection_processing import detection_processing
+
+# 2. deep sort 사용하기
+
+
 
 def get_ratio(image_width, image_height):
   return image_width / image_height
@@ -199,7 +207,7 @@ class piecewise_func():
 # test
 # 카메라 기준 1초
 async def real_time_interpolate(pre_x_center, optimal_x_center, image_width, target_width, image, start_t):
-  time_ = 30 # fps 30
+  time_ = 50 # fps 30
   start = pre_x_center
   end = optimal_x_center
   func = piecewise_func(start, end, time_)
@@ -210,21 +218,44 @@ async def real_time_interpolate(pre_x_center, optimal_x_center, image_width, tar
     float_frame_imshow(interpolated, image_width, target_width, image, start_t)
     # print("INTERPOLATING")
     
+def get_features(bbox_xywh, image, feature_extractor):
+    im_crops = []
 
+    for box in bbox_xywh:
+        x1, y1, w, h = box
+        x2 = x1 + w
+        y2 = y1 + h
+        im = image[y1:y2, x1:x2]
+        im_crops.append(im)
+    if im_crops:
+        features = feature_extractor(im_crops)
+    else:
+        features = np.array([])
+    return features
 
 async def main():
   # For webcam input:
   cap = cv2.VideoCapture(0)
   pre_x_center = 0.5
   last_detection = 0
-  mot_tracker = Sort(max_age=2, min_hits=0)
+  #mot_tracker = Sort(max_age=2, min_hits=0)
   frame_id = 1
   regions_list = []
+  max_cosine_distance = 0.5
+  nn_budget = None
 
-  # 비율 관련
-  # original_ratio = get_ratio(image_width, image_height)
-  # requested_ratio = 5 / 4
-  # target_width, target_height, scaled_target = decide_target_size(original_ratio, requested_ratio, image_width, image_height)
+
+  # initialize deep sort
+  model_name = "osnet_x0_25"
+  model_weights = "osnet_x0_25_msmt17.pth"
+  feature_extractor = FeatureExtractor(
+            model_name=model_name,
+            model_path=model_weights,
+            device='cpu'
+  )
+  # encoder = generate_detections.create_box_encoder(model_filename, batch_size=16)
+  metric = nn_matching.NearestNeighborDistanceMetric("cosine", max_cosine_distance, nn_budget)
+  tracker = Tracker(metric)
 
 
   while cap.isOpened():
@@ -246,7 +277,7 @@ async def main():
 
       image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
 
-      if (frame_id % 4 == 1): # detection per 5 frames # % 5 == 1
+      if (frame_id % 2 == 1): # detection per 5 frames # % 5 == 1
         # face detection
         fd = face_detection(image)
         fd.detect_faces()
@@ -272,53 +303,66 @@ async def main():
         frame_id += 1
 
       else: # no detection -> tracking
-        track_bbs_ids = []
+        # tlwh, confidence, feature
+        # detections = [Detection(bbox, score, feature) for bbox, score, feature in zip(converted_boxes, scores[0], features)]
+
+        ############################
         processed_boxes = []
+        processed_scores = []
         len_ = len(all_regions)
         if (len_):
           for i in range(len_):
             xmin = int(all_regions[i].x * image_width)
             ymin = int(all_regions[i].y * image_height)
-            xmax = int((all_regions[i].x + all_regions[i].w) * image_width)
-            ymax = int((all_regions[i].y + all_regions[i].h) * image_height)
-            processed_boxes.append([xmin, ymin, xmax, ymax, all_regions[i].score])
+            # xmax = int((all_regions[i].x + all_regions[i].w) * image_width)
+            # ymax = int((all_regions[i].y + all_regions[i].h) * image_height)
+            # processed_boxes.append([xmin, ymin, xmax, ymax])
+            w = int(all_regions[i].w * image_width)
+            h = int(all_regions[i].h * image_height)
+            processed_boxes.append([xmin, ymin, w, h])
+            print(processed_boxes)
+            processed_scores.append(all_regions[i].score)
           processed_boxes = np.asarray(processed_boxes)
-          # print(processed_boxes)
-          track_bbs_ids = mot_tracker.update(processed_boxes)
-          # print(track_bbs_ids)
+          # features = encoder(image, boxes)
+          features = get_features(processed_boxes, image, feature_extractor)
 
-          # dto = detection class -> 통일성
-          # x, y, w, h, score, tracking_id
+          dets = [Detection(bbox, score, feature) for bbox, score, feature in zip(processed_boxes, processed_scores, features)]
 
-          # match tracking with detection - > processed_boxes, track_bbs_ids
-          track_bbs_sorted = []
-          for i, box in enumerate(processed_boxes):
-            len_ = len(track_bbs_ids)
-            if (len_ == 1):
-              track_bbs_sorted.append(track_bbs_ids[0])
-              break
-            elif (len_ < 1):
-              break
-            cos_max = -1
-            cos_max_id = -1
-            for j in range(len_):
-              sim_ = cos_sim(box, track_bbs_ids[j])
-              if (sim_ > cos_max):
-                cos_max = sim_
-                cos_max_id = j
-            track_bbs_sorted.append(track_bbs_ids[j])
-            track_bbs_ids = np.delete(track_bbs_ids, j, 0)
 
-          region_list = []
+          boxes = np.array([d.tlwh for d in dets])
+          scores = np.array([d.confidence for d in dets])
+          print("BOXES", boxes)
+          #print("SCORES", scores)
 
-          for i, det in enumerate(track_bbs_sorted):
-            x = det[0] / image_width
-            y = det[1] / image_height
-            w = (det[2] - det[0]) / image_width
-            h = (det[3] - det[1]) / image_height
-            region_list.append(TrackingRegions(x, y, w, h, all_regions[i].score, det[4]))
-          all_regions = region_list
-          # print(all_regions)
+          tracker.predict()
+          tracker.update(dets)
+          # print(tracker)
+
+          results = []
+          for i, track in enumerate(tracker.tracks):
+            if not track.is_confirmed() or track.time_since_update > 1:
+                continue
+            bbox = track.to_tlwh()
+            # results.append([
+            #     frame_id, track.track_id, bbox[0], bbox[1], bbox[2], bbox[3]])
+            
+            x = bbox[0] / image_width
+            y = bbox[1] / image_height
+            w = bbox[2] / image_width
+            h = bbox[3] / image_height
+            ## scores[i]에서 에러 발생 가능함. deep sort 구조를 변경하거나
+            ## 혹은 fastmot로 바꾸는 것이 나을듯.
+            try:
+                results.append(TrackingRegions(x, y, w, h, scores[i], track.track_id))
+                all_regions = results
+            except:
+                frame_id = 0
+
+          
+          # print(results)
+          # all_regions = results
+        ############################
+
         frame_id += 1
       
       print(all_regions)
@@ -367,11 +411,12 @@ async def main():
         optimal_x_center = 0.5
 
       terminate_t = timeit.default_timer()
+      if (abs(pre_x_center - optimal_x_center) * image_width < 30): # 가로 기준(세로 고정) -> 세로 기준 추가해야 함
+        optimal_x_center = pre_x_center
       await real_time_interpolate(pre_x_center, optimal_x_center, image_width, target_width, image, start_t)
       # terminate_t = timeit.default_timer()
 
-      if (abs(pre_x_center - optimal_x_center) * image_width < 15): # 가로 기준(세로 고정) -> 세로 기준 추가해야 함
-        optimal_x_center = pre_x_center
+      
       
       left = int(optimal_x_center * image_width - target_width / 2)
       if (left < 0):

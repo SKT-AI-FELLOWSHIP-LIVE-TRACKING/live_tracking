@@ -51,6 +51,7 @@ class detection_processing():
                         # else:
                         #     detection_regions.pop(i)
                         #     break
+
                         if(region.score > face.score):
                             self.face_regions.pop(j)
                         else:
