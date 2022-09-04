@@ -2,10 +2,10 @@
 (수정 중)
 
 ### 현재 상황
-+ 프레임 보간 해결
++ SORT / DeepSORT 구현
++ det -> tracking -> det -> tracking
 
 ### To Do
-+ panning 구현
-+ 모델 변경
-+ frame skipping
++ FastMOT로 tracker 변경
++ object detection 모델 변경
 + (가로 고정) target_height 기준 구현
