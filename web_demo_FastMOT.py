@@ -1,3 +1,4 @@
+from logging import raiseExceptions
 import re
 import cv2
 import math
@@ -9,17 +10,30 @@ import mediapipe as mp
 from sort_tracker import *
 from deep_sort.deep_sort import nn_matching
 from deep_sort.deep_sort.detection import Detection
-from deep_sort.deep_sort.tracker import Tracker
-from deep_sort.tools import generate_detections
 from reid.torchreid.utils import FeatureExtractor
-from dtos import TrackingRegions 
+from dtos import DetectionRegions
+from dtos import FaceRegions
+from dtos import FMOT_TrackingRegions
 from face_detection import face_detection
 from object_det_v2 import object_detection
 from detection_processing import detection_processing
 
-# 2. deep sort 사용하기
+from FastMOT.fastmot.tracker import MultiTracker
+from FastMOT.fastmot.utils import ConfigDecoder
+import json
+from types import SimpleNamespace
+from FastMOT import fastmot
 
 
+# FastMOT는 현재 사람만 트래킹! -> 각 label 추가할 것.
+
+# detections type
+DET_DTYPE = np.dtype(
+    [('tlbr', float, 4),
+     ('label', int),
+     ('conf', float)],
+    align=True
+)
 
 def get_ratio(image_width, image_height):
   return image_width / image_height
@@ -207,7 +221,7 @@ class piecewise_func():
 # test
 # 카메라 기준 1초
 async def real_time_interpolate(pre_x_center, optimal_x_center, image_width, target_width, image, start_t):
-  time_ = 50 # fps 30
+  time_ = 30 # fps 30
   start = pre_x_center
   end = optimal_x_center
   func = piecewise_func(start, end, time_)
@@ -217,15 +231,19 @@ async def real_time_interpolate(pre_x_center, optimal_x_center, image_width, tar
       break
     float_frame_imshow(interpolated, image_width, target_width, image, start_t)
     # print("INTERPOLATING")
-    
-def get_features(bbox_xywh, image, feature_extractor):
+
+
+### image - RGB
+def get_features(bbox_tlbr, image_rgb, feature_extractor):
     im_crops = []
 
-    for box in bbox_xywh:
-        x1, y1, w, h = box
-        x2 = x1 + w
-        y2 = y1 + h
-        im = image[y1:y2, x1:x2]
+    for box in bbox_tlbr:
+        x1, y1, x2, y2 = box
+        x1 = int(x1)
+        y1 = int(y1)
+        x2 = int(x2)
+        y2 = int(y2)
+        im = image_rgb[y1:y2, x1:x2]
         im_crops.append(im)
     if im_crops:
         features = feature_extractor(im_crops)
@@ -233,30 +251,67 @@ def get_features(bbox_xywh, image, feature_extractor):
         features = np.array([])
     return features
 
+
+# [t, l, b, r], class_id, score
+### FastMOT는 PIL 사용 -> [t, l, b, r] == [x1,y1,x2,y2]
+
+def regions_to_detections(all_regions):
+    boxes = []
+    d = DetectionRegions(0,0,0,0,0,-1)
+    f = FaceRegions(0,0,0,0,'tmp',0)
+    t = FMOT_TrackingRegions(0,0,0,0,-1)
+    for i, region in enumerate(all_regions):
+        y1 = int(region.y * image_height)
+        x1 = int(region.x * image_width)
+        y2 = int((region.y + region.h) * image_height)
+        x2 = int((region.x + region.w) * image_width)
+        
+        if (type(region) == type(f)):
+            class_id = 1
+        elif (type(region)== type(d)):
+            class_id = int(region.class_id)
+        else:
+            raiseExceptions("data type을 확인할 수 없습니다.")
+        score = region.score
+        # boxes.append(([top, left, bottom, right], class_id, score))
+        boxes.append(([x1, y1, x2, y2], class_id, score))
+
+    return np.array(boxes, DET_DTYPE).view(np.recarray)
+
+
 async def main():
   # For webcam input:
   cap = cv2.VideoCapture(0)
-  pre_x_center = 0.5
-  last_detection = 0
-  #mot_tracker = Sort(max_age=2, min_hits=0)
-  frame_id = 1
-  regions_list = []
-  max_cosine_distance = 0.5
-  nn_budget = None
+  global image_width, image_height 
+  image_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+  image_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
+  # 비율 정하기
+  original_ratio = get_ratio(image_width, image_height)
+  requested_ratio = 4 / 5
+  target_width, target_height, scaled_target_width = decide_target_size(original_ratio, requested_ratio, image_width, image_height)
+
+  pre_x_center = 0.5
+  fps = 0
+  frame_id = 0
+
+  config = "FastMOT/cfg/mot.json"
+  with open(config) as cfg_file:
+    config = json.load(cfg_file, cls=ConfigDecoder, object_hook=lambda d: SimpleNamespace(**d))
+
+  tracker = MultiTracker((image_width, image_height), 'cosine', **vars(config.mot_cfg.tracker_cfg))
+  frame_rate = 30
+  cap_dt = 1. / frame_rate
+  tracker.reset(cap_dt)
 
   # initialize deep sort
   model_name = "osnet_x0_25"
-  model_weights = "osnet_x0_25_msmt17.pth"
+  model_weights = "osnet_x0_25_msmt17_256x128_amsgrad_ep180_stp80_lr0.003_b128_fb10_softmax_labelsmooth_flip.pth"
   feature_extractor = FeatureExtractor(
             model_name=model_name,
             model_path=model_weights,
             device='cpu'
   )
-  # encoder = generate_detections.create_box_encoder(model_filename, batch_size=16)
-  metric = nn_matching.NearestNeighborDistanceMetric("cosine", max_cosine_distance, nn_budget)
-  tracker = Tracker(metric)
-
 
   while cap.isOpened():
       success, image = cap.read()
@@ -264,9 +319,6 @@ async def main():
         print("Ignoring empty camera frame.")
         # If loading a video, use 'break' instead of 'continue'.
         continue
-      
-      image_width = image.shape[1]
-      image_height = image.shape[0]
 
       start_t = timeit.default_timer()
 
@@ -277,7 +329,42 @@ async def main():
 
       image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
 
-      if (frame_id % 2 == 1): # detection per 5 frames # % 5 == 1
+
+      if (frame_id == 0):
+        print("Frame_id == 0")
+        fd = face_detection(image)
+        fd.detect_faces()
+        regions = fd.localization_to_region()
+        #visualize_faces(image, regions, image_width, image_height)
+
+        # object detection
+        od = object_detection(image)
+        output_dict, category_index = od.detect_objects()
+        boxes = output_dict['detection_boxes']
+        classes = output_dict['detection_classes']
+        scores = output_dict['detection_scores']
+        #visualize_objects(image, boxes, classes, scores, category_index, image_width, image_height)     
+      
+
+        # detection processing
+        dp = detection_processing(boxes, classes, scores, regions[0])
+        dp.tensors_to_regions()
+        all_regions = dp.sort_detection()
+
+        ### image color transition
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+        #### detections 처리
+        detections = regions_to_detections(all_regions)
+
+        # tracker initiation
+        tracker.init(image, detections)
+
+        ### image color transition
+        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+
+
+      elif (frame_id % 5 == 0): # detection per 5 frames # % 5 == 0
         # face detection
         fd = face_detection(image)
         fd.detect_faces()
@@ -297,84 +384,89 @@ async def main():
         dp = detection_processing(boxes, classes, scores, regions[0])
         dp.tensors_to_regions()
         all_regions = dp.sort_detection()
-        # regions_list.append(all_regions)
-        # print(all_regions)
 
-        frame_id += 1
+        ### image color transition
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
-      else: # no detection -> tracking
-        # tlwh, confidence, feature
-        # detections = [Detection(bbox, score, feature) for bbox, score, feature in zip(converted_boxes, scores[0], features)]
+        tracker.compute_flow(image)
+
+        # track
+        tracker.apply_kalman()
 
         ############################
-        processed_boxes = []
-        processed_scores = []
-        len_ = len(all_regions)
-        if (len_):
-          for i in range(len_):
-            xmin = int(all_regions[i].x * image_width)
-            ymin = int(all_regions[i].y * image_height)
-            # xmax = int((all_regions[i].x + all_regions[i].w) * image_width)
-            # ymax = int((all_regions[i].y + all_regions[i].h) * image_height)
-            # processed_boxes.append([xmin, ymin, xmax, ymax])
-            w = int(all_regions[i].w * image_width)
-            h = int(all_regions[i].h * image_height)
-            processed_boxes.append([xmin, ymin, w, h])
-            print(processed_boxes)
-            processed_scores.append(all_regions[i].score)
-          processed_boxes = np.asarray(processed_boxes)
-          # features = encoder(image, boxes)
-          features = get_features(processed_boxes, image, feature_extractor)
-          print(features)
-          print(features.shape)
+        detections = regions_to_detections(all_regions)
 
-          dets = [Detection(bbox, score, feature) for bbox, score, feature in zip(processed_boxes, processed_scores, features)]
+        features = get_features(detections.tlbr, image, feature_extractor)
 
+        if (len(features)):
+            embeddings = features.numpy()
+            ### 디텍션 처리
+            tracker.update(frame_id, detections, embeddings)
 
-          boxes = np.array([d.tlwh for d in dets])
-          scores = np.array([d.confidence for d in dets])
-          print("BOXES", boxes)
-          #print("SCORES", scores)
+            results = []
+            track_lists = list(track for track in tracker.tracks.values()
+                    if track.confirmed and track.active)
+            for track in track_lists:
+                bbox = track.tlbr
+                xmin = bbox[0] / image_width
+                ymin = bbox[1] / image_height
+                w = (bbox[2] - bbox[0]) / image_width
+                h = (bbox[3] - bbox[1]) / image_height
 
-          tracker.predict()
-          tracker.update(dets)
-          # print(tracker)
-
-          results = []
-          for i, track in enumerate(tracker.tracks):
-            if not track.is_confirmed() or track.time_since_update > 1:
-                continue
-            bbox = track.to_tlwh()
-            # results.append([
-            #     frame_id, track.track_id, bbox[0], bbox[1], bbox[2], bbox[3]])
+                try:
+                    results.append(FMOT_TrackingRegions(xmin, ymin, w, h, track.trk_id))
+                except:
+                    print("Failed to append Tracking Regions")
             
-            x = bbox[0] / image_width
-            y = bbox[1] / image_height
-            w = bbox[2] / image_width
-            h = bbox[3] / image_height
-            ## scores[i]에서 에러 발생 가능함. deep sort 구조를 변경하거나
-            ## 혹은 fastmot로 바꾸는 것이 나을듯.
-            try:
-                results.append(TrackingRegions(x, y, w, h, scores[i], track.track_id))
+            if (len(results) == 0):
+                frame_id = 4
+            else:
                 all_regions = results
-            except:
-                frame_id = 0
+        
+        # no detection
+        else:
+            all_regions = []
 
-          
-          # print(results)
-          # all_regions = results
+        ### image color transition
+        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+        
         ############################
 
-        frame_id += 1
+      else:
+        ### image color transition
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+        # tracking
+        tracker.track(image)
+
+        track_lists = list(track for track in tracker.tracks.values()
+                if track.confirmed and track.active)
+        results = []
+        for track in track_lists:
+            if not (track.confirmed and track.active):
+                continue
+            bbox = track.tlbr
+
+            xmin = bbox[0] / image_width
+            ymin = bbox[1] / image_height
+            w = (bbox[2] - bbox[0]) / image_width
+            h = (bbox[3] - bbox[1]) / image_height
+
+            try:
+                results.append(FMOT_TrackingRegions(xmin, ymin, w, h, track.trk_id))
+            except:
+                print("Failed to update TrackingRegions")
+        if (len(results) == 0):
+            frame_id = 4
+        else:
+            all_regions = results
+
+        ### image color transition
+        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
       
+      frame_id += 1
+      print(frame_id)
       print(all_regions)
-
-
-      ### 예비 구현
-
-      original_ratio = get_ratio(image_width, image_height)
-      requested_ratio = 4 / 5
-      target_width, target_height, scaled_target = decide_target_size(original_ratio, requested_ratio, image_width, image_height)
 
 
       # detection 없을 때 고려해야 함
@@ -383,6 +475,7 @@ async def main():
       x_center_list = []
       score_list = []
       optimal_x_center = 0
+      scaled_target = scaled_target_width
       for i, region in enumerate(all_regions):
         x = region.x
         y = region.y
@@ -431,9 +524,9 @@ async def main():
 
       # fps 계산
       # terminate_t = timeit.default_timer()
-      fps = int(1.0 / (terminate_t - start_t))
+      fps += int(1.0 / (terminate_t - start_t))
       cv2.putText(img,
-                  "FPS:" + str(fps),
+                  "FPS:" + str(int(fps / (frame_id+1))),
                   (20, 60),
                   cv2.FONT_HERSHEY_SIMPLEX,
                   2,
@@ -441,10 +534,6 @@ async def main():
                   2)
 
       cv2.imshow('cropped', img)
-      # if (frame_id % 5 != 1):
-      #   print(frame_id)
-      #   cv2.imshow('cropped', img)
-      # cv2.imshow('image', image)
 
       if cv2.waitKey(10) & 0xFF == 27:
         break
