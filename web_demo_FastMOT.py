@@ -8,8 +8,6 @@ import asyncio
 import numpy as np
 import mediapipe as mp
 from sort_tracker import *
-from deep_sort.deep_sort import nn_matching
-from deep_sort.deep_sort.detection import Detection
 from reid.torchreid.utils import FeatureExtractor
 from dtos import DetectionRegions
 from dtos import FaceRegions
@@ -22,7 +20,6 @@ from FastMOT.fastmot.tracker import MultiTracker
 from FastMOT.fastmot.utils import ConfigDecoder
 import json
 from types import SimpleNamespace
-from FastMOT import fastmot
 
 
 # FastMOT는 현재 사람만 트래킹! -> 각 label 추가할 것.
