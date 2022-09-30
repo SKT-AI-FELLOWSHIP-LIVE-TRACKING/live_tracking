@@ -87,7 +87,7 @@ def detect_objects(image):
 
 async def main(config):
   # For webcam input:
-  cap = cv2.VideoCapture(0)
+  cap = cv2.VideoCapture(0) # webcam -> 0
   global image_width, image_height 
   image_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
   image_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))

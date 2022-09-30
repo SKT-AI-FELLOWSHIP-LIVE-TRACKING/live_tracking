@@ -203,10 +203,23 @@ async def real_time_interpolate(pre_x_center, optimal_x_center, image_width, tar
     float_frame_imshow(interpolated, image_width, target_width, image, start_t)
 
 
+def get_in_boundary(x1, y1, x2, y2, image_width, image_height):
+  if (x1 < 0):
+    x1 = 0
+  if (y1 < 0):
+    y1 = 0
+  if (x2 > image_width):
+    x2 = image_width
+  if (y2 > image_height):
+    y2 = image_height
+  return x1, y1, x2, y2
 
 ### image - RGB
 def get_features(bbox_tlbr, image_rgb, feature_extractor):
     im_crops = []
+    image_width = image_rgb.shape[1]
+    image_height = image_rgb.shape[0]
+    print(image_width, image_height)
 
     for box in bbox_tlbr:
         x1, y1, x2, y2 = box
@@ -214,6 +227,8 @@ def get_features(bbox_tlbr, image_rgb, feature_extractor):
         y1 = int(y1)
         x2 = int(x2)
         y2 = int(y2)
+        x1, y1, x2, y2 = get_in_boundary(x1, y1, x2, y2, image_width, image_height)
+
         im = image_rgb[y1:y2, x1:x2]
         im_crops.append(im)
     if im_crops:
