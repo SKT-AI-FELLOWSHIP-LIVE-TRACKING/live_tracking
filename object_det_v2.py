@@ -52,7 +52,7 @@ class object_detection():
         f.close()
         return category_index
 
-    def get_output_dict(self, image, nms=True, iou_thresh=0.5, score_thresh=0.6):
+    def get_output_dict(self, image, nms=True, iou_thresh=0.5, score_thresh=0.7):
         """
         Function to make predictions and generate dictionary of output
         --------

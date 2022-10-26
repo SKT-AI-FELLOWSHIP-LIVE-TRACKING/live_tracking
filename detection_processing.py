@@ -16,6 +16,8 @@ class detection_processing():
 
     def tensors_to_regions(self):
         for i, box in enumerate(self.boxes):
+            if (self.scores[i] < 0.6):
+                continue
             x = box[1]
             y = box[0]
             w = box[3] - box[1]
@@ -34,24 +36,35 @@ class detection_processing():
         # self.regions = detection_regions
         return detection_regions
 
-    def combine_faces_and_detections(self, detectioin_regions):
+    def combine_faces_and_detections(self, detection_regions):
         # self.face_regions
-        # detectioin_regions
-        for i, region in enumerate(detectioin_regions):
+        # detection_regions
+        idx_ = 0
+        pop_flag = 0
+        while (idx_ != len(detection_regions)):
+            region = detection_regions[idx_]
             if (region.class_id == 0):
                 for j, face in enumerate(self.face_regions):
                     if ((face.x > region.x) and (face.x + face.w < region.x + region.w)):
-                        if (face.score < 0.7):
-                            self.face_regions.pop(j)
-                        else:
-                            detectioin_regions.pop(i)
-                            break
-                        # if(region.score > face.score):
+                        # if (face.score < 0.7):
                         #     self.face_regions.pop(j)
                         # else:
-                        #     detectioin_regions.pop(i)
+                        #     detection_regions.pop(i)
                         #     break
-        regions_to_sort = self.face_regions + detectioin_regions
+
+                        if(region.score > face.score):
+                            self.face_regions.pop(j)
+                        else:
+                            detection_regions.pop(idx_)
+                            pop_flag = 1
+                            break
+            if (pop_flag == 1):
+                pop_flag = 0
+            else:
+                idx_ += 1
+          
+
+        regions_to_sort = self.face_regions + detection_regions
         # print(regions_to_sort)
         self.regions_to_sort = regions_to_sort
 
