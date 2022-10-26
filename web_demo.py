@@ -1,5 +1,6 @@
 from logging import raiseExceptions
 import re
+from urllib import request
 import cv2
 import math
 import argparse
@@ -85,6 +86,78 @@ def detect_objects(image):
   return all_regions
 
 
+def x_processing(all_regions, scaled_target_width):
+  # detection 없을 때 고려해야 함
+  # detection 여러 개일 때 프레임 흔들림 (두 개 model -> 잡을 때와 안 잡힐 때)
+  # 얼굴을 detection 했을 때는 전적으로 신뢰하기로 ㄱㄱ
+  x_center_list = []
+  optimal_x_center = 0
+  scaled_target = scaled_target_width
+  for i, region in enumerate(all_regions):
+    x = region.x
+    y = region.y
+    w = region.w
+    h = region.h
+    x_center = x + w / 2
+    y_center = y + h / 2
+    if (i == 0): # 가로 기준(세로 고정) 나중에 수정해야 함 + 기준은 float로
+      x_center_list.append(x_center)
+      # score_list.append(x_center)
+      min_ = max_ = x_center_list[0]
+    elif (scaled_target <= 0):
+      break
+    elif ((min_ - x_center > 0) and (min_ - x_center < scaled_target)):
+      x_center_list.append(x_center)
+      scaled_target -= (min_ - x_center)
+      min_ = x_center
+    elif ((x_center - max_ < scaled_target) and (x_center - max_ > 0)):
+      x_center_list.append(x_center)
+      scaled_target -= (x_center - max_)
+      max_ = x_center
+
+  if (len(x_center_list)):
+    optimal_x_center = np.average(x_center_list)
+  else:
+    optimal_x_center = 0.5
+  
+  return optimal_x_center
+
+
+def y_processing(all_regions, scaled_target_height):
+  y_center_list = []
+  optimal_y_center = 0
+  scaled_target = scaled_target_height
+  for i, region in enumerate(all_regions):
+    x = region.x
+    y = region.y
+    w = region.w
+    h = region.h
+    x_center = x + w / 2
+    y_center = y + h / 2
+    if (i == 0): # 가로 기준(세로 고정) 나중에 수정해야 함 + 기준은 float로
+      y_center_list.append(y_center)
+      # score_list.append(x_center)
+      min_ = max_ = y_center_list[0]
+    elif (scaled_target <= 0):
+      break
+    elif ((min_ - y_center > 0) and (min_ - y_center < scaled_target)):
+      y_center_list.append(y_center)
+      scaled_target -= (min_ - y_center)
+      min_ = y_center
+    elif ((y_center - max_ < scaled_target) and (y_center - max_ > 0)):
+      y_center_list.append(y_center)
+      scaled_target -= (y_center - max_)
+      max_ = y_center
+
+  if (len(y_center_list)):
+    optimal_y_center = np.average(y_center_list)
+  else:
+    optimal_y_center = 0.5
+  
+  return optimal_y_center
+
+      
+
 async def main(config):
   # For webcam input:
   cap = cv2.VideoCapture(0) # webcam -> 0
@@ -94,10 +167,12 @@ async def main(config):
 
   # 비율 정하기
   original_ratio = get_ratio(image_width, image_height)
-  requested_ratio = 4 / 5 # arg 인자로 받아오기 !
-  target_width, target_height, scaled_target_width = decide_target_size(original_ratio, requested_ratio, image_width, image_height)
+  # requested_ratio = 9 / 16 # arg 인자로 받아오기 !
+  requested_ratio = config.w / config.h
+  target_width, target_height, scaled_target, wh_flag = decide_target_size(original_ratio, requested_ratio, image_width, image_height)
 
   pre_x_center = 0.5
+  pre_y_center = 0.5
   fps = 0
   frame_id = 0
 
@@ -237,62 +312,81 @@ async def main(config):
         image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
       
       frame_id += 1
-      print(frame_id)
+
       print(all_regions)
 
-
-      # detection 없을 때 고려해야 함
-      # detection 여러 개일 때 프레임 흔들림 (두 개 model -> 잡을 때와 안 잡힐 때)
-      # 얼굴을 detection 했을 때는 전적으로 신뢰하기로 ㄱㄱ
-      x_center_list = []
-      score_list = []
-      optimal_x_center = 0
-      scaled_target = scaled_target_width
-      for i, region in enumerate(all_regions):
-        x = region.x
-        y = region.y
-        w = region.w
-        h = region.h
-        x_center = x + w / 2
-        y_center = y + h / 2
-        if (i == 0): # 가로 기준(세로 고정) 나중에 수정해야 함 + 기준은 float로
-          x_center_list.append(x_center)
-          score_list.append(x_center)
-          min_ = max_ = x_center_list[0]
-        elif (scaled_target <= 0):
-          break
-        elif ((min_ - x_center > 0) and (min_ - x_center < scaled_target)):
-          x_center_list.append(x_center)
-          scaled_target -= (min_ - x_center)
-          min_ = x_center
-        elif ((x_center - max_ < scaled_target) and (x_center - max_ > 0)):
-          x_center_list.append(x_center)
-          scaled_target -= (x_center - max_)
-          max_ = x_center
-
-      
-      if (len(x_center_list)):
-        optimal_x_center = np.average(x_center_list)
-        # print(x_center_list)
-      else:
-        optimal_x_center = 0.5
-
-      terminate_t = timeit.default_timer()
-      if (abs(pre_x_center - optimal_x_center) * image_width < 30): # 가로 기준(세로 고정) -> 세로 기준 추가해야 함
-        optimal_x_center = pre_x_center
-      await real_time_interpolate(pre_x_center, optimal_x_center, image_width, target_width, image, start_t)
-      # terminate_t = timeit.default_timer()
+      ############################
+      # # detection 없을 때 고려해야 함
+      # # detection 여러 개일 때 프레임 흔들림 (두 개 model -> 잡을 때와 안 잡힐 때)
+      # # 얼굴을 detection 했을 때는 전적으로 신뢰하기로 ㄱㄱ
+      # x_center_list = []
+      # # score_list = []
+      # optimal_x_center = 0
+      # scaled_target = scaled_target_width
+      # for i, region in enumerate(all_regions):
+      #   x = region.x
+      #   y = region.y
+      #   w = region.w
+      #   h = region.h
+      #   x_center = x + w / 2
+      #   y_center = y + h / 2
+      #   if (i == 0): # 가로 기준(세로 고정) 나중에 수정해야 함 + 기준은 float로
+      #     x_center_list.append(x_center)
+      #     # score_list.append(x_center)
+      #     min_ = max_ = x_center_list[0]
+      #   elif (scaled_target <= 0):
+      #     break
+      #   elif ((min_ - x_center > 0) and (min_ - x_center < scaled_target)):
+      #     x_center_list.append(x_center)
+      #     scaled_target -= (min_ - x_center)
+      #     min_ = x_center
+      #   elif ((x_center - max_ < scaled_target) and (x_center - max_ > 0)):
+      #     x_center_list.append(x_center)
+      #     scaled_target -= (x_center - max_)
+      #     max_ = x_center
 
       
-      
-      left = int(optimal_x_center * image_width - target_width / 2)
-      if (left < 0):
-        left = 0
-      elif (left > image_width - target_width):
-        left = image_width - target_width
+      # if (len(x_center_list)):
+      #   optimal_x_center = np.average(x_center_list)
+      #   # print(x_center_list)
+      # else:
+      #   optimal_x_center = 0.5
 
-      pre_x_center = optimal_x_center
-      img = image[:, left:left+target_width]
+      if (wh_flag == 0):
+        optimal_x_center = x_processing(all_regions, scaled_target)
+
+        terminate_t = timeit.default_timer()
+        if (abs(pre_x_center - optimal_x_center) * image_width < 10): # 가만히 있을 때 흔들리는 이슈 해결하기 위해 사용.... 일시적인 방법이므로 이보다 더 좋은 방법이 있을 시 대체하는 것이 좋을듯. 현재 10으로 흔들리는 것을 방지해놨는데 이보다 크게 파라미터를 설정하면 interpolation 과정에서 프레임이 불안정하게 보간됨.
+          optimal_x_center = pre_x_center
+        await real_time_interpolate_x(pre_x_center, optimal_x_center, image_width, target_width, image)
+        # terminate_t = timeit.default_timer()
+        
+        left = int(optimal_x_center * image_width - target_width / 2)
+        if (left < 0):
+          left = 0
+        elif (left > image_width - target_width):
+          left = image_width - target_width
+
+        pre_x_center = optimal_x_center
+        img = image[:, left:left+target_width]
+
+      else: # 세로가 crop될 때
+        optimal_y_center = y_processing(all_regions, scaled_target)
+
+        terminate_t = timeit.default_timer()
+        if (abs(pre_y_center - optimal_y_center) * image_height < 10): # 가만히 있을 때 흔들리는 이슈 해결하기 위해 사용.... 일시적인 방법이므로 이보다 더 좋은 방법이 있을 시 대체하는 것이 좋을듯. 현재 10으로 흔들리는 것을 방지해놨는데 이보다 크게 파라미터를 설정하면 interpolation 과정에서 프레임이 불안정하게 보간됨.
+          optimal_y_center = pre_y_center
+        await real_time_interpolate_y(pre_y_center, optimal_y_center, image_height, target_height, image)
+        # terminate_t = timeit.default_timer()
+        
+        top = int(optimal_y_center * image_height - target_height / 2)
+        if (top < 0):
+          top = 0
+        elif (top > image_height - target_height):
+          top = image_height - target_height
+
+        pre_y_center = optimal_y_center
+        img = image[top:top+target_height, :]
 
       # fps 계산
       # terminate_t = timeit.default_timer()
@@ -315,10 +409,9 @@ async def main(config):
 
 if __name__ == "__main__":
   parser = argparse.ArgumentParser()
-
-  # 
-  # parser.add_argument('--', type=str, default=, help='')
-  
+  parser.add_argument('--mode', type=str, default="default", help='If u want sport tracking, set "--mode sport".')
+  parser.add_argument('--w', type=int, default=1, help='Ratio of Frame Width')
+  parser.add_argument('--h', type=int, default=1, help='Ratio of Frame Height')
   config = parser.parse_args()
   print(config)
   asyncio.run(main(config))

@@ -144,14 +144,14 @@ def decide_target_size(original_ratio, requested_ratio, image_width, image_heigh
     target_width = round_to_even(image_height * requested_ratio)
     scaled_target_width = target_width / image_width / 2
 
-    return target_width, target_height, scaled_target_width
+    return target_width, target_height, scaled_target_width, 0
   
   else:
     target_width = round_to_even(image_width)
     target_height = round_to_even(image_width / requested_ratio)
     scaled_target_height = target_height / image_height / 2
 
-    return target_width, target_height, scaled_target_height
+    return target_width, target_height, scaled_target_height, 1
 
 
 def show_fps(img, start_t):
@@ -166,18 +166,6 @@ def show_fps(img, start_t):
               2)
   return img
 
-def float_frame_imshow(interpolated, image_width, target_width, image, start_t):
-  # x_center = min(math.floor(interpolated * image_width), image_width - 1)
-  x_center = int(interpolated * image_width)
-  left = int(x_center - target_width / 2)
-  if (left < 0):
-    left = 0
-  elif (left > image_width - target_width):
-    left = image_width - target_width
-  img = image[:, left:left + target_width]
-  # img = show_fps(img, start_t)
-  cv2.imshow('cropped', img)
-
 class piecewise_func():
   def __init__(self, start, end, time):
     self.start_x = 0
@@ -189,9 +177,21 @@ class piecewise_func():
   def evaluate(self, input):
     return self.end_x - (self.end_x - input) / (self.end_x - self.start_x) * (self.end_y - self.start_y)
 
+
+def float_frame_imshow_x(interpolated, image_width, target_width, image):
+  # x_center = min(math.floor(interpolated * image_width), image_width - 1)
+  x_center = int(interpolated * image_width)
+  left = int(x_center - target_width / 2)
+  if (left < 0):
+    left = 0
+  elif (left > image_width - target_width):
+    left = image_width - target_width
+  img = image[:, left:left + target_width]
+  cv2.imshow('cropped', img)
+
 # test
 # 카메라 기준 1초
-async def real_time_interpolate(pre_x_center, optimal_x_center, image_width, target_width, image, start_t):
+async def real_time_interpolate_x(pre_x_center, optimal_x_center, image_width, target_width, image):
   time_ = 30 # fps 30
   start = pre_x_center
   end = optimal_x_center
@@ -200,8 +200,30 @@ async def real_time_interpolate(pre_x_center, optimal_x_center, image_width, tar
     interpolated = func.evaluate(i)
     if (int(interpolated * image_width) == optimal_x_center):
       break
-    float_frame_imshow(interpolated, image_width, target_width, image, start_t)
+    float_frame_imshow_x(interpolated, image_width, target_width, image)
 
+
+def float_frame_imshow_y(interpolated, image_height, target_height, image):
+  y_center = int(interpolated * image_height)
+  top = int(y_center - target_height / 2)
+  if (top < 0):
+    top = 0
+  elif (top > image_height - target_height):
+    top = image_height - target_height
+  img = image[top:top + target_height, :]
+  cv2.imshow('cropped', img)
+
+
+async def real_time_interpolate_y(pre_y_center, optimal_y_center, image_height, target_height, image):
+  time_ = 30 # fps 30
+  start = pre_y_center
+  end = optimal_y_center
+  func = piecewise_func(start, end, time_)
+  for i in range(1, time_):
+    interpolated = func.evaluate(i)
+    if (int(interpolated * image_height) == optimal_y_center):
+      break
+    float_frame_imshow_y(interpolated, image_height, target_height, image)
 
 def get_in_boundary(x1, y1, x2, y2, image_width, image_height):
   if (x1 < 0):
@@ -219,7 +241,6 @@ def get_features(bbox_tlbr, image_rgb, feature_extractor):
     im_crops = []
     image_width = image_rgb.shape[1]
     image_height = image_rgb.shape[0]
-    print(image_width, image_height)
 
     for box in bbox_tlbr:
         x1, y1, x2, y2 = box
