@@ -175,7 +175,7 @@ class piecewise_func():
     # self.time_ = 30 # fps 30 -> 1 sec
   
   def evaluate(self, input):
-    return self.end_x - (self.end_x - input) / (self.end_x - self.start_x) * (self.end_y - self.start_y)
+    return self.end_y - (self.end_x - input) / (self.end_x - self.start_x) * (self.end_y - self.start_y)
 
 
 def float_frame_imshow_x(interpolated, image_width, target_width, image):
