@@ -176,13 +176,15 @@ async def main(config):
 
       start_t = timeit.default_timer()
 
+      outputs = None
 
       if (frame_id  >= 1): # detection per 5 frames # % 5 == 0
         # detect objects
         all_regions = detect_objects(image)
         dets = regions_to_detections_BYTE(all_regions)
-        outputs = tracker.update(dets, [image_height, image_width], (image_height, image_width))
-        
+        if (len(dets)):
+          outputs = tracker.update(dets, [image_height, image_width], (image_height, image_width))
+  
 
 
       if outputs is not None:

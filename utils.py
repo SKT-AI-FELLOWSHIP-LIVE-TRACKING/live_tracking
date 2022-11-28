@@ -192,7 +192,7 @@ def float_frame_imshow_x(interpolated, image_width, target_width, image):
 # test
 # 카메라 기준 1초
 async def real_time_interpolate_x(pre_x_center, optimal_x_center, image_width, target_width, image):
-  time_ = 20 # fps 30
+  time_ = 2 # fps 30
   start = pre_x_center
   end = optimal_x_center
   func = piecewise_func(start, end, time_)
@@ -215,7 +215,7 @@ def float_frame_imshow_y(interpolated, image_height, target_height, image):
 
 
 async def real_time_interpolate_y(pre_y_center, optimal_y_center, image_height, target_height, image):
-  time_ = 15 # fps 30
+  time_ = 1 # fps 30
   start = pre_y_center
   end = optimal_y_center
   func = piecewise_func(start, end, time_)
