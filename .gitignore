@@ -1,2 +1,4 @@
 __pycache__
 .DS_Store
+camera_path_solver.py
+web_demo_new.py
