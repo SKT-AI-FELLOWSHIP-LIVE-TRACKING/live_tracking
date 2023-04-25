@@ -8,7 +8,7 @@ from dtos import FaceRegions
 
 
 
-class face_detection:
+class face_detection():
     def __init__(self, image):
         self.image = image
         self.image_width = image.shape[1]
@@ -80,8 +80,6 @@ class face_detection:
                 # 한 클래스를 한 명의 디텍션 정보로 구성하고 이를 리스트로 묶음.
 
                 # face_full
-                #region = FaceRegions()
-
                 x = max(float(0), box.xmin)
                 y = max(float(0), box.ymin)
                 width = min(box.width - abs(x - box.xmin), 1 - x)
@@ -90,7 +88,6 @@ class face_detection:
                 visual_score = detection.score[0]
 
                 region = FaceRegions(x, y, width, height, SignalType, visual_score)
-                # region.update_region(x, y, width, height, SignalType, visual_score)
                 self.face_full.append(region)
 
 
