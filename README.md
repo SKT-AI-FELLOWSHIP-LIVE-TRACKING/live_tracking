@@ -1,12 +1,10 @@
 # live_tracking
-(수정 중)
++ web_demo.py 파일로 라이브 트래킹 사용 가능
 
 ### 현재 상황
-+ FastMOT 구현 완료
-+ 현재 detection -> tracking -> tracking -> tracking -> tracking
-+ 4개의 프레임 skip 중
-+ tracking으로 detection을 놓치는 경우 detection 프레임으로 건너뛰기
++ 현재 트래커를 BYTEtracker로 변경하였음.
++ ID switching 문제가 기존 FastMOT(DeepSORT 변형)보다 확연히 줄어들었음.
++ 현재 mac m1 cpu 기준 fps는 약 28~29로 측정됨.
 
-### To Do
-+ object detection 모델 변경
-+ (가로 고정) target_height 기준 구현
+### Future work
++ GPU 세팅 -> Object detection 모델 교체
