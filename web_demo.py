@@ -7,16 +7,13 @@ import argparse
 import timeit
 import asyncio
 import numpy as np
-import mediapipe as mp
 from reid.torchreid.utils import FeatureExtractor
-from dtos import DetectionRegions
-from dtos import FaceRegions
-from dtos import FMOT_TrackingRegions
+from dtos import DetectionRegions, FaceRegions, FMOT_TrackingRegions
 from face_detection import face_detection
-from object_det_v2 import object_detection
+from object_detection import object_detection
 from detection_processing import detection_processing
-from FastMOT.fastmot.tracker import MultiTracker
-from FastMOT.fastmot.utils import ConfigDecoder
+# from FastMOT.fastmot.tracker import MultiTracker
+# from FastMOT.fastmot.utils import ConfigDecoder
 import json
 from types import SimpleNamespace
 from utils import *
@@ -86,9 +83,8 @@ def x_processing(all_regions, scaled_target_width, pre_x_center):
     h = region.h
     x_center = x + w / 2
     y_center = y + h / 2
-    if (i == 0): # 가로 기준(세로 고정) 나중에 수정해야 함 + 기준은 float로
+    if (i == 0): 
       x_center_list.append(x_center)
-      # score_list.append(x_center)
       min_ = max_ = x_center_list[0]
     elif (scaled_target <= 0):
       break
@@ -105,7 +101,6 @@ def x_processing(all_regions, scaled_target_width, pre_x_center):
     optimal_x_center = np.average(x_center_list)
   else:
     optimal_x_center = pre_x_center
-    #optimal_x_center = 0.5
   
   return optimal_x_center
 
@@ -121,9 +116,8 @@ def y_processing(all_regions, scaled_target_height, pre_y_center):
     h = region.h
     x_center = x + w / 2
     y_center = y + h / 2
-    if (i == 0): # 가로 기준(세로 고정) 나중에 수정해야 함 + 기준은 float로
+    if (i == 0): 
       y_center_list.append(y_center)
-      # score_list.append(x_center)
       min_ = max_ = y_center_list[0]
     elif (scaled_target <= 0):
       break
@@ -140,7 +134,6 @@ def y_processing(all_regions, scaled_target_height, pre_y_center):
     optimal_y_center = np.average(y_center_list)
   else:
     optimal_y_center = pre_y_center
-    #optimal_y_center = 0.5
   
   return optimal_y_center
 
@@ -162,7 +155,8 @@ async def main(config):
   pre_x_center = 0.5
   pre_y_center = 0.5
   fps = 0
-  frame_id = 1
+  frame_id = 0
+  all_regions = []
 
   tracker = BYTETracker(config)
 
@@ -233,7 +227,7 @@ async def main(config):
         optimal_y_center = y_processing(all_regions, scaled_target, pre_y_center)
 
         terminate_t = timeit.default_timer()
-        if (abs(pre_y_center - optimal_y_center) * image_height < 10): # 가만히 있을 때 흔들리는 이슈 해결하기 위해 사용.... 일시적인 방법이므로 이보다 더 좋은 방법이 있을 시 대체하는 것이 좋을듯. 현재 10으로 흔들리는 것을 방지해놨는데 이보다 크게 파라미터를 설정하면 interpolation 과정에서 프레임이 불안정하게 보간됨.
+        if (abs(pre_y_center - optimal_y_center) * image_height < 10): 
           optimal_y_center = pre_y_center
         await real_time_interpolate_y(pre_y_center, optimal_y_center, image_height, target_height, image)
         # terminate_t = timeit.default_timer()
