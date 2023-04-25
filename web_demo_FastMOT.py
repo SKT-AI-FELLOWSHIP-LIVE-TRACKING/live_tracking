@@ -13,7 +13,7 @@ from dtos import DetectionRegions
 from dtos import FaceRegions
 from dtos import FMOT_TrackingRegions
 from face_detection import face_detection
-from object_det_v2 import object_detection
+from object_detection import object_detection
 from detection_processing import detection_processing
 
 from FastMOT.fastmot.tracker import MultiTracker
