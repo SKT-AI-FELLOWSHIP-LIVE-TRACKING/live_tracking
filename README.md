@@ -28,9 +28,8 @@ Center Stage는 아이패드에서 영상 통화를 할 때 사람의 얼굴을 
 
 object detection은 영상이나 이미지에서 사람, 동물 등의 유의미한 객체를 찾기 위한 컴퓨터비전 기술입니다. object detection은 이미지 내 특정 사물을 분류하는 task인 image classification과는 다르게 탐지된 객체의 종류를 찾고(classification), 해당 객체의 위치(localization)를 사각형의 형태인 bounding box를 활용하여 찾게 됩니다.
 
-![                     image classification                                          object detection](https://s3-us-west-2.amazonaws.com/secure.notion-static.com/5f76db68-5bcb-44a3-8713-65ddefeef19a/%E1%84%89%E1%85%B3%E1%84%8F%E1%85%B3%E1%84%85%E1%85%B5%E1%86%AB%E1%84%89%E1%85%A3%E1%86%BA_2022-10-04_%E1%84%8B%E1%85%A9%E1%84%92%E1%85%AE_9.31.11.png)
 
-                     image classification                                          object detection
+<img width="625" alt="스크린샷 2022-10-04 오후 9 31 11" src="https://user-images.githubusercontent.com/81224613/234164996-8545b157-155a-4ee8-94a0-2d8ff8ae273e.png">
 
  
 
@@ -40,17 +39,14 @@ object detection에 주로 사용되는 모델인 yolo와 SSD 중에서 비교�
 
 SSD[3] 모델은 객체 검출 및 분류와 bounding box를 구하는 Region Proposal이 한 번에 이루어지는 one-stage 모델입니다. 따라서 이전까지의 two-stage 모델과는 fps, 즉 연산 속도가 더 빠르다는 장점을 지니고 있습니다. 실제로 대표적인 two-stage 모델인 Faster R-CNN은 7 fps인 반면에 SSD 모델은 59 fps의 속도를 지니고 있습니다.
 
-![                                                                                       SSD 구조](https://s3-us-west-2.amazonaws.com/secure.notion-static.com/9391892b-2478-4ff1-b3a3-9c6c613ed718/%E1%84%89%E1%85%B3%E1%84%8F%E1%85%B3%E1%84%85%E1%85%B5%E1%86%AB%E1%84%89%E1%85%A3%E1%86%BA_2022-10-06_%E1%84%8B%E1%85%A9%E1%84%8C%E1%85%A5%E1%86%AB_1.04.09.png)
+<img width="1101" alt="스크린샷 2022-10-06 오전 1 04 09" src="https://user-images.githubusercontent.com/81224613/234163510-eda6cf83-16bb-4aba-8e2c-d89a459edc89.png">
 
-                                                                                       SSD 구조
 
 SSD 모델은 여러 개의 feature map에서 object detection을 수행시키는 점이 다른 object detection 모델들과의 차이점입니다. 여러 개의 feature map은 각각 다른 사이즈로 구성되어 있는데 큰 사이즈(높은 해상도)의 feature map에서는 크기가 작은 객체를 잘 인식하고, 작은 사이즈(낮은 해상도)의 feature map에서는 크기가 큰 객체를 잘 인식합니다. 다수의 feature map에서 얻은 bounding box 정보를 NMS 처리를 하면서 최종적으로 객체의 종류와 객체의 위치를 파악할 수 있습니다.
 
 ### (1)-2 face detection
 
-![                     Blazeface output](https://s3-us-west-2.amazonaws.com/secure.notion-static.com/323cbbdb-3a5f-4eec-865e-e3f35a30f00e/%E1%84%89%E1%85%B3%E1%84%8F%E1%85%B3%E1%84%85%E1%85%B5%E1%86%AB%E1%84%89%E1%85%A3%E1%86%BA_2022-10-06_%E1%84%8B%E1%85%A9%E1%84%8C%E1%85%A5%E1%86%AB_1.24.49.png)
-
-                     Blazeface output
+<img width="170" alt="스크린샷 2022-10-06 오전 1 24 49" src="https://user-images.githubusercontent.com/81224613/234163508-1090a0c7-e2a8-46ab-8471-06836386b079.png">
 
 얼굴 인식은 mediapipe에서 제공하는 face detection api를 사용하였습니다. mediapipe의 face detection은 BlazeFace[4]라는 경량화 face detection 모델을 통해 이루어집니다. 해당 api를 통해 이미지 내에서의 다중 얼굴을 찾고, 각 얼굴의 6개의 랜드마크(양쪽 눈, 코, 입, 양쪽 귀)들을 찾을 수 있습니다.
 
@@ -64,11 +60,11 @@ SSD 모델은 여러 개의 feature map에서 object detection을 수행시키�
 
 Face / Object detection으로 인식한 정보 중에서 mAP 스코어가 가장 큰 피사체를 list에 저장합니다. 이후 임의의 경계 범위(target width / height의 절반으로 설정) 안에 다른 detection의 중심 좌표가 들어올 수 있는 경우에 해당 정보를 list에 저장하고 경계 범위를 update합니다. 앞의 과정을 모두 마친 후 list에 저장된 detection 중심 좌표들의 평균을 구하면 리프레임에 최적인 중점을 얻게 됩니다.
 
-![스크린샷 2022-10-04 오후 11.25.16.png](https://s3-us-west-2.amazonaws.com/secure.notion-static.com/433b9a17-da37-42e1-aba1-b8bddf6041c6/%E1%84%89%E1%85%B3%E1%84%8F%E1%85%B3%E1%84%85%E1%85%B5%E1%86%AB%E1%84%89%E1%85%A3%E1%86%BA_2022-10-04_%E1%84%8B%E1%85%A9%E1%84%92%E1%85%AE_11.25.16.png)
+<img width="679" alt="스크린샷 2022-10-04 오후 11 25 16" src="https://user-images.githubusercontent.com/81224613/234163503-9e5521bc-1343-4ea9-a3a3-71a407137fec.png">
 
 위의 사진으로 예시를 들겠습니다. 각 피사체의 id는 mAP score가 높은 순서대로 부여하였고, 왼쪽에 파란 막대는 임의의 경계 범위입니다. 1번을 기준으로 경계 범위 안에 2번, 3번, 4번 피사체가 들어올 수 있는지 차례대로 비교합니다. 만약에 위의 상황에서 2번 피사체와 1번 피사체와의 거리가 설정한 경계 범위 보다 작다고 가정하면 2번 피사체도 자를 프레임에 담아내도록 하고(2번 피사체의 중점 좌표를 list에 저장) 경계 범위를 2번 피사체와 1번 피사체의 거리만큼 빼주면서 update하는 것입니다. 3번, 4번 피사체는 1, 2번 피사체와의 거리가 update된 경계 범위 보다 크다고 가정하겠습니다.
 
-![스크린샷 2022-10-04 오후 11.32.31.png](https://s3-us-west-2.amazonaws.com/secure.notion-static.com/2ea74f2e-47f3-4edd-b84a-0876ed039fcb/%E1%84%89%E1%85%B3%E1%84%8F%E1%85%B3%E1%84%85%E1%85%B5%E1%86%AB%E1%84%89%E1%85%A3%E1%86%BA_2022-10-04_%E1%84%8B%E1%85%A9%E1%84%92%E1%85%AE_11.32.31.png)
+<img width="680" alt="스크린샷 2022-10-04 오후 11 32 31" src="https://user-images.githubusercontent.com/81224613/234163500-4befc93f-0390-4cc2-b565-f11755a12296.png">
 
 위의 상황대로 알고리즘 처리를 마치면 list에 저장된 중점 좌표들의 평균이 리프레임 최적 중점이 됩니다. 해당 최적 중점을 통해 리프레임하면 사진에서 보이는 빨간색 박스와 같은 프레임을 얻을 수 있습니다.
 
@@ -84,17 +80,13 @@ Face / Object detection으로 인식한 정보 중에서 mAP 스코어가 가장
 
 보간이란 기존에 알던 어떠한 두 지점 사이에 위치한 새로운 데이터의 값을 추정하는 것을 의미합니다. 
 
-![                                         선형 보간법](https://s3-us-west-2.amazonaws.com/secure.notion-static.com/24da9228-dedd-48cc-b18c-e0ce4df4a0a8/%E1%84%89%E1%85%B3%E1%84%8F%E1%85%B3%E1%84%85%E1%85%B5%E1%86%AB%E1%84%89%E1%85%A3%E1%86%BA_2022-10-04_%E1%84%8B%E1%85%A9%E1%84%92%E1%85%AE_11.51.00.png)
-
-                                         선형 보간법
+<img width="302" alt="스크린샷 2022-10-04 오후 11 51 00" src="https://user-images.githubusercontent.com/81224613/234163498-3745ecd7-df4f-4ec3-887a-fc5e6b7be8ad.png">
 
 위의 사진은 선형 보간법의 예시로, 끝점인 (x0, y0), (x1, y1)의 값이 주어졌을 때 직선 거리에 따라 선형적으로 계산하여 그 사이에 위치한 값 (x, y)를 추정하는 것입니다.
 
 프레임 보간법은 euclidean norm으로 한 프레임의 좌표와 다른 프레임의 좌표의 직선 거리 linear하게 나타낸 후에 한 프레임의 timestamp와 다른 프레임의 timestamp 사이에 존재하는 timestamp에 해당하는 좌표 값을 추정하여 이루어집니다. 즉 한 프레임에서 다음 프레임이 송출되기 전에 보간한 좌표 값을 중심으로 crop한 프레임들을 채워 넣어서 더 자연스러운 영상이 보여지게 하는 것입니다.
 
-![                                                   euclidean norm](https://s3-us-west-2.amazonaws.com/secure.notion-static.com/ab154655-6d53-45d1-a0bf-325e21335516/%E1%84%89%E1%85%B3%E1%84%8F%E1%85%B3%E1%84%85%E1%85%B5%E1%86%AB%E1%84%89%E1%85%A3%E1%86%BA_2022-10-05_%E1%84%8B%E1%85%A9%E1%84%8C%E1%85%A5%E1%86%AB_12.03.32.png)
-
-                                                   euclidean norm
+<img width="252" alt="스크린샷 2022-10-05 오전 12 03 32" src="https://user-images.githubusercontent.com/81224613/234163493-8dc14c2d-e439-42e6-a759-c7defd5091db.png">
 
 하지만 기존의 보간법을 라이브 트래킹에 사용하기에는 문제가 발생하였습니다.
 
@@ -102,29 +94,7 @@ euclidean norm 보간 방법을 사용할 때 Key frame들의 좌표들과 times
 
 따라서 이전 프레임과 현재 프레임의 중심 좌표를 비교하는 online 방식으로 프레임을 보간하였습니다. 또한 timestamp가 없는 문제는 이전 프레임과 현재 프레임 사이에 채워 넣는 보간 프레임의 개수를 임의로 정하여 해결하였습니다.
 
-다음 세 영상은 각각 보간 프레임의 개수를 5, 15, 30으로 설정했을 때의 실행 결과입니다. 보간 프레임의 개수를 5로 설정했을 때보다 15, 30으로 설정했을 때가 비교적 프레임이 자연스럽게 움직이는 것을 확인할 수 있습니다. 따라서 보간 프레임의 개수를 넉넉하게 30으로 설정하고, 중간에 타겟 중심 좌표(현재 프레임의 중심 좌표)에 도달하였을 때 보간을 멈추는 것으로 구현하였습니다.
 
-[              5개 프레임으로 보간 시](https://s3-us-west-2.amazonaws.com/secure.notion-static.com/03d2fd9b-ff42-416a-b418-91c21eed775c/%E1%84%92%E1%85%AA%E1%84%86%E1%85%A7%E1%86%AB_%E1%84%80%E1%85%B5%E1%84%85%E1%85%A9%E1%86%A8_2022-10-08_%E1%84%8B%E1%85%A9%E1%84%92%E1%85%AE_8.46.47.mov)
-
-              5개 프레임으로 보간 시
-
-[               15개 프레임으로 보간 시](https://s3-us-west-2.amazonaws.com/secure.notion-static.com/141fb20a-b167-41de-b619-8f1a0b15a770/%E1%84%92%E1%85%AA%E1%84%86%E1%85%A7%E1%86%AB_%E1%84%80%E1%85%B5%E1%84%85%E1%85%A9%E1%86%A8_2022-10-08_%E1%84%8B%E1%85%A9%E1%84%92%E1%85%AE_8.57.15.mov)
-
-               15개 프레임으로 보간 시
-
-[             30개 프레임으로 보간 시](https://s3-us-west-2.amazonaws.com/secure.notion-static.com/31853e54-50cd-4dce-9171-3067fcd27774/%E1%84%92%E1%85%AA%E1%84%86%E1%85%A7%E1%86%AB_%E1%84%80%E1%85%B5%E1%84%85%E1%85%A9%E1%86%A8_2022-10-08_%E1%84%8B%E1%85%A9%E1%84%92%E1%85%AE_8.56.10_(1).mov)
-
-             30개 프레임으로 보간 시
-
-다음은 프레임 보간 전과 후를 비교한 영상입니다.
-
-[                                         프레임 보간 전](https://s3-us-west-2.amazonaws.com/secure.notion-static.com/49318f49-14b3-42c5-abe8-e50248e9bd6f/KakaoTalk_Video_2022-10-03-00-59-33.mp4)
-
-                                         프레임 보간 전
-
-[                                          프레임 보간 후](https://s3-us-west-2.amazonaws.com/secure.notion-static.com/b1a0d49d-a420-4665-a484-fefe6872a848/KakaoTalk_Video_2022-10-03-00-59-25.mp4)
-
-                                          프레임 보간 후
 
 ## 문제 식별
 
@@ -136,9 +106,7 @@ euclidean norm 보간 방법을 사용할 때 Key frame들의 좌표들과 times
 
 - object detection 모델의 정확도가 낮다.
 
-![                                             COCO test-dev dataset에서의 object detection 모델 정확도 비교 그래프](https://s3-us-west-2.amazonaws.com/secure.notion-static.com/e3eaf277-fb6b-46cc-8306-eb9f2d60e6af/%E1%84%89%E1%85%B3%E1%84%8F%E1%85%B3%E1%84%85%E1%85%B5%E1%86%AB%E1%84%89%E1%85%A3%E1%86%BA_2022-10-08_%E1%84%8B%E1%85%A9%E1%84%92%E1%85%AE_9.55.18.png)
-
-                                             COCO test-dev dataset에서의 object detection 모델 정확도 비교 그래프
+<img width="957" alt="스크린샷 2022-10-08 오후 9 55 18" src="https://user-images.githubusercontent.com/81224613/234163488-6427bc47-ca2b-4a37-b19c-aff8fd5a820e.png">
 
 fps를 30이상으로 구현하기 위해서 속도가 빠른 object detection 모델인 SSD를 사용하다 보니, 모델의 성능이 좋지 않았습니다. 따라서 객체를 인식하지 못하거나, 객체의 위치에 따른 bounding box를 제대로 그리지 못하는 현상이 발생하였습니다.
 
@@ -166,7 +134,7 @@ SORT[5]는 kalman filter와 헝가리안 알고리즘을 이용하여 피사체�
 
 칼만 필터는 영상 내 객체의 움직임이 선형적이라고 가정하고(영상 내에서 객체가 갑자기 사라지는 경우가 매우 적기 때문), 이전 객체의 위치 및 속도를 계산하여 현재 프레임의 객체 위치를 확률적으로 추정합니다.
 
-![스크린샷 2022-10-06 오전 11.14.42.png](https://s3-us-west-2.amazonaws.com/secure.notion-static.com/e6f00b49-d274-4a8c-8c16-2a222404ad8b/%E1%84%89%E1%85%B3%E1%84%8F%E1%85%B3%E1%84%85%E1%85%B5%E1%86%AB%E1%84%89%E1%85%A3%E1%86%BA_2022-10-06_%E1%84%8B%E1%85%A9%E1%84%8C%E1%85%A5%E1%86%AB_11.14.42.png)
+<img width="489" alt="스크린샷 2022-10-06 오전 11 14 42" src="https://user-images.githubusercontent.com/81224613/234163486-20f8249f-180e-45ab-af87-55658fca0e47.png">
 
 - `u` : 이전 프레임에서의 객체 가로 중점 위치
 - `v` : 이전 프레임에서의 객체 세로 중점 위치
@@ -185,9 +153,7 @@ SORT[5]는 kalman filter와 헝가리안 알고리즘을 이용하여 피사체�
 
 위의 과정을 통해 현재 이미지 내에서의 객체 정보를 파악하고 추적하게 됩니다.
 
-![                                                                                    SORT 흐름도](https://s3-us-west-2.amazonaws.com/secure.notion-static.com/58bc4170-b73b-4b60-ba2d-f00c6a030260/%E1%84%89%E1%85%B3%E1%84%8F%E1%85%B3%E1%84%85%E1%85%B5%E1%86%AB%E1%84%89%E1%85%A3%E1%86%BA_2022-10-27_%E1%84%8B%E1%85%A9%E1%84%92%E1%85%AE_4.14.52.png)
-
-                                                                                    SORT 흐름도
+<img width="830" alt="스크린샷 2022-10-27 오후 4 14 52" src="https://user-images.githubusercontent.com/81224613/234163485-9b01ec2b-0906-478f-a5f4-3e2f50d9608a.png">
 
 Deep SORT[6]는 기존 SORT 방식에서 Matching cascade와 Person Re-Identification을 추가한 것입니다.
 
@@ -203,7 +169,7 @@ FastMOT는 N개의 프레임마다 object detection을 하고, 그 공백을 칼
 
 칼만 필터의 예측 정확도를 더 높이기 위해 이전 프레임과 현재 프레임의 optical flow를 계산한 후에 칼만 필터를 적용하는 방식을 사용하여 object detector 없이도 tracking 프레임에서 피사체를 추적할 수 있게 됩니다.
 
-![스크린샷 2022-08-19 오후 7.29.45.png](https://s3-us-west-2.amazonaws.com/secure.notion-static.com/8897f2d6-d880-4178-964b-bf39710437c3/%E1%84%89%E1%85%B3%E1%84%8F%E1%85%B3%E1%84%85%E1%85%B5%E1%86%AB%E1%84%89%E1%85%A3%E1%86%BA_2022-08-19_%E1%84%8B%E1%85%A9%E1%84%92%E1%85%AE_7.29.45.png)
+<img width="790" alt="스크린샷 2022-08-19 오후 7 29 45" src="https://user-images.githubusercontent.com/81224613/234163483-355fb4bd-d31a-4a4e-92bb-d91e0a10d169.png">
 
 ### Sparse frame processing
 
@@ -235,7 +201,7 @@ fps(frame per second)는 1초당 보여지는 프레임의 개수를 의미합�
 
 - bounding box
     
-    ![스크린샷 2022-10-06 오전 11.35.35.png](https://s3-us-west-2.amazonaws.com/secure.notion-static.com/c8fc345b-8f96-4476-a09c-bc8ff9e26f43/%E1%84%89%E1%85%B3%E1%84%8F%E1%85%B3%E1%84%85%E1%85%B5%E1%86%AB%E1%84%89%E1%85%A3%E1%86%BA_2022-10-06_%E1%84%8B%E1%85%A9%E1%84%8C%E1%85%A5%E1%86%AB_11.35.35.png)
+<img width="369" alt="스크린샷 2022-10-06 오전 11 35 35" src="https://user-images.githubusercontent.com/81224613/234163482-a1136541-cd07-4250-8df8-282ee5d91f27.png">
     
 
 Object detection에서 객체의 위치를 표현할 때 사용하는 직사각형 모양의 박스입니다.
@@ -248,15 +214,13 @@ mAP(mean Average Precision)는 Object detector의 정확도를 평가할 때 주
 
 Object detection에서 객체의 위치를 맞게 추정했는지 판단할 때 IOU라는 개념을 사용합니다. 
 
-![스크린샷 2022-10-08 오후 10.30.00.png](https://s3-us-west-2.amazonaws.com/secure.notion-static.com/f57de566-8b77-4564-a522-775d0794cfe3/%E1%84%89%E1%85%B3%E1%84%8F%E1%85%B3%E1%84%85%E1%85%B5%E1%86%AB%E1%84%89%E1%85%A3%E1%86%BA_2022-10-08_%E1%84%8B%E1%85%A9%E1%84%92%E1%85%AE_10.30.00.png)
+<img width="583" alt="스크린샷 2022-10-08 오후 10 30 00" src="https://user-images.githubusercontent.com/81224613/234163480-8b9352ee-06f6-4f38-8e62-65f61c822e34.png">
 
 IOU(Intersection over Union)는 교집합의 영역 / 합집합의 영역입니다.
 
 Object detector가 예측한 bounding box와 실제 객체의 bounding box(ground-truth) 영역 간의 IOU 값이 0.5 이상일 때 Object detector가 옳게 예측했다고 판단하게 됩니다.
 
-![                       confusion matrix](https://s3-us-west-2.amazonaws.com/secure.notion-static.com/9d48eaf3-d824-49eb-8855-2ccac799249b/%E1%84%89%E1%85%B3%E1%84%8F%E1%85%B3%E1%84%85%E1%85%B5%E1%86%AB%E1%84%89%E1%85%A3%E1%86%BA_2022-10-08_%E1%84%8B%E1%85%A9%E1%84%92%E1%85%AE_10.16.47.png)
-
-                       confusion matrix
+<img width="308" alt="스크린샷 2022-10-08 오후 10 16 47" src="https://user-images.githubusercontent.com/81224613/234163478-621af6fe-ffb7-462b-b7ee-e3e2384f7a0d.png">
 
 - $precision = { TP \over TP + FP }$
 
@@ -273,11 +237,10 @@ recall(재현률)은 실제로 True인 것들 중에서 모델이 True라고 한
     
     최근에 생성된 track에 우선 순위를 부여하는 알고리즘입니다. 가장 최근에 생성된 track일수록 더 정확한 추적이고, 나중에 생성된 track일수록 불확실한 추적이라고 판단하기 때문입니다. 
     
-    ![                                        Matching Cascade 의사 코드](https://s3-us-west-2.amazonaws.com/secure.notion-static.com/6f882aa8-b563-42a9-9f4f-23e80923b153/%E1%84%89%E1%85%B3%E1%84%8F%E1%85%B3%E1%84%85%E1%85%B5%E1%86%AB%E1%84%89%E1%85%A3%E1%86%BA_2022-10-09_%E1%84%8B%E1%85%A9%E1%84%92%E1%85%AE_3.18.12.png)
+
+<img width="450" alt="스크린샷 2022-10-09 오후 3 18 12" src="https://user-images.githubusercontent.com/81224613/234163471-22cb8cdb-999a-4e82-bf85-3f2468ca9e15.png">
     
-                                            Matching Cascade 의사 코드
-    
-    Matching Cascade가 일어나는 과정은 다음과 같습니다.
+* Matching Cascade가 일어나는 과정은 다음과 같습니다.
     
     - Track과 Detection 간의 cost matrix를 구합니다. cost matrix는 Mahalanobis distance와 cosine distance를 통해 구하는데, 논문에서는 cosine distance만을 사용했을 때 오히려 성능이 좋다고 합니다.
     - track에 대한 추정 타당성을 검증하는 gate matrix를 구합니다. Track과 Detection 사이의 cost에 임계값을 설정하는 방법을 통해 있을 것 같지 않다고 판단되는 track을 제거합니다.
@@ -286,10 +249,10 @@ recall(재현률)은 실제로 True인 것들 중에서 모델이 True라고 한
     
     - Re-identification
     
-    ![스크린샷 2022-10-06 오후 3.31.27.png](https://s3-us-west-2.amazonaws.com/secure.notion-static.com/470e2cc6-91ba-4597-a543-76fdd334e68d/%E1%84%89%E1%85%B3%E1%84%8F%E1%85%B3%E1%84%85%E1%85%B5%E1%86%AB%E1%84%89%E1%85%A3%E1%86%BA_2022-10-06_%E1%84%8B%E1%85%A9%E1%84%92%E1%85%AE_3.31.27.png)
-    
-    ![스크린샷 2022-10-06 오후 3.31.52.png](https://s3-us-west-2.amazonaws.com/secure.notion-static.com/cc8e407a-a6aa-4844-89f3-d58f72f44e67/%E1%84%89%E1%85%B3%E1%84%8F%E1%85%B3%E1%84%85%E1%85%B5%E1%86%AB%E1%84%89%E1%85%A3%E1%86%BA_2022-10-06_%E1%84%8B%E1%85%A9%E1%84%92%E1%85%AE_3.31.52.png)
-    
+<img width="288" alt="스크린샷 2022-10-06 오후 3 31 27" src="https://user-images.githubusercontent.com/81224613/234163515-e2d691e3-a2dc-4b8b-b866-facdf44a788d.png">
+
+<img width="887" alt="스크린샷 2022-10-06 오후 3 31 52" src="https://user-images.githubusercontent.com/81224613/234163513-0c59acdb-46f3-4965-90f4-4bf6beeef08a.png">
+
     SORT는 ID switching의 문제를 갖고 있습니다. ID switching은 다양한 객체를 추적할 때, 각 개체의 track ID가 바뀌는 현상입니다. ID switching은 tracking의 성능을 저하시키는 요인이기 때문에 이를 해결하고자 Re-identification 모델을 적용하였습니다. 
     
     Person Re-identification은 특정 사람을 다양한 각도나 위치에 있는 다른 이미지들에서 찾는 task입니다. CNN의 feature space 상에서 동일한 사람에 대한 feature는 feature 사이의 거리가 가깝게 mapping하고, 다른 사람에 대한 feature는 feature 사리의 거리가 멀게 mapping하는 방식을 통해 사람의 특징을 잘 파악하는 모델을 얻을 수 있고, 이 모델이 OSNet입니다. 
