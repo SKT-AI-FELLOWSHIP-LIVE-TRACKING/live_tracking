@@ -253,11 +253,11 @@ recall(재현률)은 실제로 True인 것들 중에서 모델이 True라고 한
 
 <img width="887" alt="스크린샷 2022-10-06 오후 3 31 52" src="https://user-images.githubusercontent.com/81224613/234163513-0c59acdb-46f3-4965-90f4-4bf6beeef08a.png">
 
-    SORT는 ID switching의 문제를 갖고 있습니다. ID switching은 다양한 객체를 추적할 때, 각 개체의 track ID가 바뀌는 현상입니다. ID switching은 tracking의 성능을 저하시키는 요인이기 때문에 이를 해결하고자 Re-identification 모델을 적용하였습니다. 
+SORT는 ID switching의 문제를 갖고 있습니다. ID switching은 다양한 객체를 추적할 때, 각 개체의 track ID가 바뀌는 현상입니다. ID switching은 tracking의 성능을 저하시키는 요인이기 때문에 이를 해결하고자 Re-identification 모델을 적용하였습니다. 
     
-    Person Re-identification은 특정 사람을 다양한 각도나 위치에 있는 다른 이미지들에서 찾는 task입니다. CNN의 feature space 상에서 동일한 사람에 대한 feature는 feature 사이의 거리가 가깝게 mapping하고, 다른 사람에 대한 feature는 feature 사리의 거리가 멀게 mapping하는 방식을 통해 사람의 특징을 잘 파악하는 모델을 얻을 수 있고, 이 모델이 OSNet입니다. 
+Person Re-identification은 특정 사람을 다양한 각도나 위치에 있는 다른 이미지들에서 찾는 task입니다. CNN의 feature space 상에서 동일한 사람에 대한 feature는 feature 사이의 거리가 가깝게 mapping하고, 다른 사람에 대한 feature는 feature 사리의 거리가 멀게 mapping하는 방식을 통해 사람의 특징을 잘 파악하는 모델을 얻을 수 있고, 이 모델이 OSNet입니다. 
     
-    DeepSORT에서는 OSNet을 활용하여 detection된 피사체를 잘라낸 프레임에서 image feature를 추출합니다. 해당 정보를 tracking에 사용하여 ID switching 문제를 45% 감소시켰습니다.
+DeepSORT에서는 OSNet을 활용하여 detection된 피사체를 잘라낸 프레임에서 image feature를 추출합니다. 해당 정보를 tracking에 사용하여 ID switching 문제를 45% 감소시켰습니다.
     
 
 ## Reference
