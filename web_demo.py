@@ -243,7 +243,7 @@ async def main(config):
 
       frame_id += 1
 
-      
+      img = img.copy()
       # fps 계산
       terminate_t = timeit.default_timer()
       fps += int(1.0 / (terminate_t - start_t))
