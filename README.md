@@ -1,5 +1,33 @@
 # SKT AI fellowship 4기
 
+## Installation
+
+```python
+conda install pytorch::pytorch torchvision torchaudio -c pytorch
+pip install opencv-python
+pip install scipy
+pip install pillow
+pip install gdown
+conda install tensorboard
+pip install mediapipe
+pip install tensorflow
+pip install loguru
+pip install thop
+pip install laps
+pip install attrs
+```
+loguru부터 attrs까지는 Bytetrack tracker에 필요한 라이브러리입니다!
+
+## Run the code
+
+```python
+python web_demo.py
+```
+![live_tracking_demo](https://github.com/user-attachments/assets/e5fca34f-f4c5-475d-80d7-3e220a633e28)
+
+
+
+
 ## 연구 배경
 
 최근 유튜브, 트위치 등 비디오 스트리밍 분야는 미디어 환경에서 매우 빠르게 성장하고 있습니다. 특히 라이브 스트리밍 분야 상위 5개 앱의 지난 3년 연평균 성장률이 25%를 기록하면서 사진 및 비디오 앱의 연평균 성장률 15%를 뛰어넘었습니다. 
