@@ -1,21 +1,13 @@
 from logging import raiseExceptions
-import re
-from urllib import request
 import cv2
-import math
 import argparse
 import timeit
 import asyncio
 import numpy as np
-from reid.torchreid.utils import FeatureExtractor
 from dtos import DetectionRegions, FaceRegions, FMOT_TrackingRegions
 from face_detection import face_detection
 from object_detection import object_detection
 from detection_processing import detection_processing
-# from FastMOT.fastmot.tracker import MultiTracker
-# from FastMOT.fastmot.utils import ConfigDecoder
-import json
-from types import SimpleNamespace
 from utils import *
 from ByteTrack.yolox.tracker.byte_tracker import BYTETracker
 
@@ -44,6 +36,7 @@ def regions_to_detections_BYTE(all_regions):
         boxes.append((x1, y1, x2, y2, score))
 
     return np.array(boxes)
+
 
 def detect_objects(image):
   # face detection
@@ -137,7 +130,14 @@ def y_processing(all_regions, scaled_target_height, pre_y_center):
   
   return optimal_y_center
 
-      
+# Interpolation function
+def interpolate_coords(old_center, new_center, alpha):
+    return (1 - alpha) * np.array(old_center) + alpha * np.array(new_center)
+
+# Calculate alpha based on FPS
+def calculate_alpha(fps):
+    return min(1.0, max(0.01, 1.0 / fps))
+
 
 async def main(config):
   # For webcam input:
@@ -148,13 +148,12 @@ async def main(config):
 
   # 비율 정하기
   original_ratio = get_ratio(image_width, image_height)
-  # requested_ratio = 9 / 16 # arg 인자로 받아오기 !
   requested_ratio = config.w / config.h
   target_width, target_height, scaled_target, wh_flag = decide_target_size(original_ratio, requested_ratio, image_width, image_height)
 
   pre_x_center = 0.5
   pre_y_center = 0.5
-  fps = 0
+  fps = 30
   frame_id = 0
   all_regions = []
 
@@ -202,17 +201,19 @@ async def main(config):
         # save results
         all_regions = results
 
-      print(all_regions)
+      # print(all_regions)
 
       # Reframe
       if (wh_flag == 0):
         optimal_x_center = x_processing(all_regions, scaled_target, pre_x_center)
 
         terminate_t = timeit.default_timer()
-        if (abs(pre_x_center - optimal_x_center) * image_width < 5): # 가만히 있을 때 흔들리는 이슈 해결하기 위해 사용.... 일시적인 방법이므로 이보다 더 좋은 방법이 있을 시 대체하는 것이 좋을듯. 현재 10으로 흔들리는 것을 방지해놨는데 이보다 크게 파라미터를 설정하면 interpolation 과정에서 프레임이 불안정하게 보간됨.
+        if (abs(pre_x_center - optimal_x_center) * image_width < 10): # 가만히 있을 때 흔들리는 이슈 해결하기 위해 사용 / 현재 10으로 흔들리는 것을 방지해놨는데 이보다 크게 파라미터를 설정하면 interpolation 과정에서 프레임이 불안정하게 보간됨.
           optimal_x_center = pre_x_center
-        await real_time_interpolate_x(pre_x_center, optimal_x_center, image_width, target_width, image)
-        # terminate_t = timeit.default_timer()
+        # await real_time_interpolate_x(pre_x_center, optimal_x_center, image_width, target_width, image)
+        
+        alpha = calculate_alpha(fps) # alpha 계산 based on current FPS
+        optimal_x_center = interpolate_coords(pre_x_center, optimal_x_center, alpha) # linear interpolation -> optimal coords update
         
         left = int(optimal_x_center * image_width - target_width / 2)
         if (left < 0):
@@ -229,8 +230,9 @@ async def main(config):
         terminate_t = timeit.default_timer()
         if (abs(pre_y_center - optimal_y_center) * image_height < 10): 
           optimal_y_center = pre_y_center
-        await real_time_interpolate_y(pre_y_center, optimal_y_center, image_height, target_height, image)
-        # terminate_t = timeit.default_timer()
+
+        alpha = calculate_alpha(fps) # alpha 계산 based on current FPS
+        optimal_y_center = interpolate_coords(pre_y_center, optimal_y_center, alpha) # linear interpolation -> optimal coords update
         
         top = int(optimal_y_center * image_height - target_height / 2)
         if (top < 0):
@@ -246,9 +248,9 @@ async def main(config):
       img = img.copy()
       # fps 계산
       terminate_t = timeit.default_timer()
-      fps += int(1.0 / (terminate_t - start_t))
+      fps = int(1.0 / (terminate_t - start_t))
       cv2.putText(img,
-                  "FPS:" + str(int(fps / (frame_id+1))),
+                  "FPS:" + str(int(fps)),
                   (20, 60),
                   cv2.FONT_HERSHEY_SIMPLEX,
                   2,

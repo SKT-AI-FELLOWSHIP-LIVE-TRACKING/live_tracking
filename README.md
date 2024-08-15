@@ -120,9 +120,21 @@ Face / Object detection으로 인식한 정보 중에서 mAP 스코어가 가장
 
 euclidean norm 보간 방법을 사용할 때 Key frame들의 좌표들과 timestamp를 활용하여 보간하는데, 실시간에선 영상 데이터와 달리 다음으로 얻어오는 프레임들을 알 수 없기 때문에 해당 방법을 사용할 수 없었습니다.
 
-따라서 이전 프레임과 현재 프레임의 중심 좌표를 비교하는 online 방식으로 프레임을 보간하였습니다. 또한 timestamp가 없는 문제는 이전 프레임과 현재 프레임 사이에 채워 넣는 보간 프레임의 개수를 임의로 정하여 해결하였습니다.
+따라서 이전 프레임과 현재 프레임의 중심 좌표를 비교하는 online 방식으로 프레임을 보간하였습니다. ~~또한 timestamp가 없는 문제는 이전 프레임과 현재 프레임 사이에 채워 넣는 보간 프레임의 개수를 임의로 정하여 해결하였습니다.~~
+
+### UPDATE !! (in 2024.08)
+보간 프레임을 이전 프레임과 현재 프레임 사이에 끼워 넣어서 보간하는 것은 Web Application에서 작동하는 데 문제를 발생시킵니다.. 한 개 이상의 프레임을 지속적으로 삽입하게 되면, Web에서 프레임을 처리하는 연산 시간을 초과하게 됩니다. 이에 따라 필요한 프레임들을 송출하는 것이 불가능해지며 몇몇 프레임들이 drop되는 현상이 발생합니다.
 
 
+따라서 interpolation 방법을 이전 frame step에서의 key coord와 현재 frame step (detection + tracking으로 구한) key coord 사이에 linear interpolation을 적용하여 현재 frame step에서의 key coord를 update하는 것으로 변경하였습니다.
+
+$$
+optimal center = (1 - \alpha) * prev center + \alpha * current center
+$$
+- $\alpha$ : fps에 따라 조정되는 parameter
+- $\alpha$ = clamp(min=0.01, max=1.0, fps)
+
+-> 이전 방법보다 framing 안정성이 매우 개선되었습니다!!
 
 ## 문제 식별
 
