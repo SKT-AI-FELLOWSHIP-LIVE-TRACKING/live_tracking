@@ -129,7 +129,7 @@ euclidean norm 보간 방법을 사용할 때 Key frame들의 좌표들과 times
 따라서 interpolation 방법을 이전 frame step에서의 key coord와 현재 frame step (detection + tracking으로 구한) key coord 사이에 linear interpolation을 적용하여 현재 frame step에서의 key coord를 update하는 것으로 변경하였습니다.
 
 $$
-optimal_center = (1 - \alpha) * prev_center + \alpha * current_center
+optimal center = (1 - \alpha) * prev center + \alpha * current center
 $$
 - $\alpha$ : fps에 따라 조정되는 parameter
 - $\alpha$ = clamp(min=0.01, max=1.0, fps)
