@@ -269,8 +269,8 @@ async def main(config):
 if __name__ == "__main__":
   parser = argparse.ArgumentParser()
   parser.add_argument('--mode', type=str, default="default", help='If u want sport tracking, set "--mode sport".')
-  parser.add_argument('--w', type=int, default=1, help='Ratio of Frame Width')
-  parser.add_argument('--h', type=int, default=1, help='Ratio of Frame Height')
+  parser.add_argument('--w', type=float, default=1, help='Ratio of Frame Width')
+  parser.add_argument('--h', type=float, default=1, help='Ratio of Frame Height')
   parser.add_argument("-b", "--batch-size", type=int, default=64, help="batch size")
   parser.add_argument(
     "-f",

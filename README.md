@@ -2,31 +2,22 @@
 
 ## Installation
 
-```python
-conda install pytorch::pytorch torchvision torchaudio -c pytorch
-pip install opencv-python
-pip install scipy
-pip install pillow
-pip install gdown
-conda install tensorboard
-pip install mediapipe
-pip install tensorflow
-pip install loguru
-pip install thop
-pip install laps
-pip install attrs
+```bash
+pip install -r requirements.txt
 ```
-loguru부터 attrs까지는 Bytetrack tracker에 필요한 라이브러리입니다!
 
 ## Run the code
 
-```python
+```bash
 python web_demo.py
 ```
-![live_tracking_demo](https://github.com/user-attachments/assets/e5fca34f-f4c5-475d-80d7-3e220a633e28)
+![live_tracking_demo](https://github.com/user-attachments/assets/38457dd2-78fa-492c-a6e4-80a31d753bbd)
 
 
-
+- Setting Academy Ratio
+```bash
+python web_demo.py --w 1.37 --h 1
+```
 
 ## 연구 배경
 
