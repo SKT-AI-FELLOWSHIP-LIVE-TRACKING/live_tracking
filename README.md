@@ -11,7 +11,7 @@ pip install -r requirements.txt
 ```bash
 python web_demo.py
 ```
-![live_tracking_demo](https://github.com/user-attachments/assets/38457dd2-78fa-492c-a6e4-80a31d753bbd)
+![live_tracking_demo](https://github.com/user-attachments/assets/5eeb4e87-e19e-4f24-85fc-dfb0dab5c7b4)
 
 
 - Setting Academy Ratio
